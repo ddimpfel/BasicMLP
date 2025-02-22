@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.31.2)
 
-set(PROJECT_NAME cmakeapp)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-project(PROJECT_NAME # CHANGE NAME TO PROJECT
+project(basic_mlp
     LANGUAGES CXX
-    VERSION 0.1
+    VERSION 0.5
 ) 
 
 add_subdirectory(src)

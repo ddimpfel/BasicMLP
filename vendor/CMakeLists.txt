@@ -4,4 +4,7 @@ set(IMGUI_SFML_IMGUI_DEMO ON)
 
 add_subdirectory(sfml)
 add_subdirectory(imgui-sfml)
-target_link_libraries(PROJECT_NAME PRIVATE ImGui-SFML::ImGui-SFML)
+target_link_libraries(
+    ${PROJECT_NAME}  
+    PRIVATE ImGui-SFML::ImGui-SFML
+)

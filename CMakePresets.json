@@ -1,0 +1,13 @@
+{
+	"version": 6,
+	"configurePresets": [
+		{
+			"name": "default",
+			"displayName": "Default Config",
+			"description": "Default build configuration",
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/../build",
+			"cmakeExecutable": "C:/Program Files/CMake/bin/cmake.exe"
+		}
+	]
+}
