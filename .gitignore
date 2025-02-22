@@ -1,0 +1,5 @@
+.vs/*
+.vscode/*
+BasicMLP/*
+Tests/x64/*
+packages/*
