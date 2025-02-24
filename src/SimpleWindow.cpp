@@ -10,6 +10,7 @@
 #include <SFML/Window/Keyboard.hpp>
 #include <SFML/Window/VideoMode.hpp>
 #include <SFML/Window/WindowEnums.hpp>
+#include <imgui-SFML.h>
 
 SimpleWindow::SimpleWindow() { setup("Window", sf::Vector2u(640, 480)); }
 SimpleWindow::SimpleWindow(const std::string& l_title, const sf::Vector2u& l_size)
@@ -21,7 +22,8 @@ SimpleWindow::~SimpleWindow() { destroy(); }
 void SimpleWindow::setup(const std::string& l_title, const sf::Vector2u& l_size)
 {
 	m_windowTitle = l_title;
-	m_windowSize = l_size;
+	m_uWindowSize = l_size;
+	m_fWindowSize = static_cast<sf::Vector2f>(l_size);
 	m_isFullscreen = false;
 	m_isOpen = true;
 	create();
@@ -30,8 +32,8 @@ void SimpleWindow::setup(const std::string& l_title, const sf::Vector2u& l_size)
 void SimpleWindow::create()
 {
 	auto state = (m_isFullscreen ? sf::State::Fullscreen : sf::State::Windowed);
-	m_window.create(sf::VideoMode({ m_windowSize.x, m_windowSize.y }),
-		m_windowTitle, state);
+	m_window.create(sf::VideoMode({ m_uWindowSize.x, m_uWindowSize.y }),
+		m_windowTitle, state, {0, 0, 8});
 }
 
 void SimpleWindow::destroy()
@@ -39,19 +41,30 @@ void SimpleWindow::destroy()
 	m_window.close();
 }
 
-void SimpleWindow::processEvents()//sf::View& mainView)
+void SimpleWindow::processEvents(sf::View& mainView)
 {
-	while (const auto event = m_window.pollEvent()) {
-		if (event->is<sf::Event::Closed>()) {
+	while (const auto event = m_window.pollEvent()) 
+	{
+		ImGui::SFML::ProcessEvent(m_window, *event);
+
+		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) 
+		{
+			if (keyPressed->scancode == sf::Keyboard::Scancode::F5)
+				toggleFullscreen();
+		}
+		else if (const auto* resize = event->getIf<sf::Event::Resized>()) 
+		{
+			// The view's size is independent of the window, so this will "zoom" accordingly.
+			// If the window is enlarged, it will "zoom" out, keeping the relative size the same.
+			mainView.setSize(sf::Vector2f(resize->size));
+		}
+		else if (event->is<sf::Event::Closed>())
+		{
 			m_isOpen = false;
 		}
-		else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
-			if (keyPressed->scancode == sf::Keyboard::Scancode::F5) toggleFullscreen();
-		}
-		//else if (const auto* resize = event->getIf<sf::Event::Resized>()) {
-		//	mainView.setSize(sf::Vector2f(resize->size));
-		//}
 	}
+
+	m_window.setView(mainView);
 }
 
 void SimpleWindow::toggleFullscreen()
@@ -74,7 +87,8 @@ void SimpleWindow::draw(const sf::Drawable& l_drawable) { m_window.draw(l_drawab
 
 bool SimpleWindow::isOpen() const { return m_isOpen; }
 bool SimpleWindow::isFullscreen() const { return m_isFullscreen; }
-sf::Vector2u SimpleWindow::getWindowSize() const { return m_windowSize; }
+const sf::Vector2u& SimpleWindow::getWindowSizeU() const { return m_uWindowSize; }
+const sf::Vector2f& SimpleWindow::getWindowSizeF() const { return m_fWindowSize; }
 unsigned int SimpleWindow::getFramerate() const { return m_framerate; }
 sf::RenderTarget& SimpleWindow::getRenderTarget() { return m_window; }
 sf::RenderWindow& SimpleWindow::get() { return m_window; }

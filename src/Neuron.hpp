@@ -7,19 +7,16 @@
 class Neuron 
 {
 public:
-    void InitRandomWeightsAndBias(std::uniform_real_distribution<> &dist, std::mt19937 &gen) 
-    {
-        for (size_t i = 0; i < m_weights.size(); i++)
-        {
-            m_weights[i] = dist(gen);
-        }
-        this->m_bias = dist(gen);
-    }
+    void InitRandomWeightsAndBias(int neuronCount, 
+        std::uniform_real_distribution<float>& dist,
+        std::mt19937& gen);
 
-    std::vector<float>& getWeights() { return m_weights; }
-    float&   getBias()    { return m_bias; }
+    const std::vector<float>& getWeights() const;
+    std::vector<float>& weights();
+    float&              bias();
 
-    void setWeights(const std::vector<float>&weights) { m_weights = weights; }
+    void setBias(float bias);
+    void setWeights(const std::vector<float>&weights);
 
 private:
     std::vector<float> m_weights;
