@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <random>
+#include <memory>
 #include <optional>
 #include <functional>
 
@@ -10,34 +11,51 @@ class Network
 {
 public:
     Network();
-    Network(int layerCount,
-        const std::function<float(float)> &ActivationFunction,
-        const std::function<float(float)> &DerivativeActivationFunction,
-        const std::function<float(size_t, float, float)> &LossFunction,
-        const std::optional<std::vector<std::vector<std::vector<float>>>> &optWeights = std::nullopt,
-        const std::optional<std::vector<std::vector<float>>> &optBiases = std::nullopt
+    Network(
+        const std::vector<int>& initialLayers,
+        const std::function<float(float)>& ActivationFunction,
+        const std::function<float(float)>& DerivativeActivationFunction,
+        const std::function<float(size_t, float, float)>& LossFunction,
+        std::unique_ptr<std::uniform_real_distribution<float>> dist = nullptr,
+        std::unique_ptr<std::mt19937> gen = nullptr
+    );
+    Network(
+        const std::vector<int>& initialLayers,
+        const std::function<float(float)>& ActivationFunction,
+        const std::function<float(float)>& DerivativeActivationFunction,
+        const std::function<float(size_t, float, float)>& LossFunction,
+        std::vector<std::vector<std::vector<float>>>& optWeights,
+        std::vector<std::vector<float>>& optBiases
     );
 
     std::vector<float> Predict(const std::vector<float>& inputs);
 
     void Fit(const std::vector<float> &inputs, const std::vector<float> &expectedOutputs);
 
-    const std::vector<Layer>& GetLayers() const;
+    const std::vector<int>& getArchitecture() const;
+
+    const std::vector<Layer>& getLayers() const;
+
+    const std::vector<std::vector<float>>& getLayerOutputs() const;
 
     /*!
      *   @brief Used for testing the network, a needs to be made to compare to
      *
      *      @return hard copy of weights 3d vector
      */
-    std::vector<std::vector<std::vector<float>>> CopyWeights();
+    std::vector<std::vector<std::vector<float>>> copyWeights();
 
 private:
-    void InitRandomizer(int lower_bound, int upper_bound, std::optional<int> opt_seed = std::nullopt);
-
-    void InitLayers(int layerCount,
+    void InitLayersPreset(
         const std::function<float(float)> &ActivationFunction,
         const std::optional<std::vector<std::vector<std::vector<float>>>> &optWeights = std::nullopt,
         const std::optional<std::vector<std::vector<float>>> &optBiases = std::nullopt
+    );
+
+    void InitLayersRandom(
+        const std::function<float(float)>& ActivationFunction,
+        std::uniform_real_distribution<float> dist,
+        std::mt19937 gen
     );
 
     /*!
@@ -71,12 +89,10 @@ private:
         float learningRate
     );
 
+    std::vector<int> m_architecture;
     std::vector<Layer> m_layers;
     std::vector<std::vector<float>> m_layerOutputs;
 
-    std::function<float(float)> pDerivativeActivationFunction; // TODO change to use 'reverse mode automatic differentiation'
-    std::function<float(size_t, float, float)> pLossFunction;
-
-    std::mt19937 m_gen;
-    std::uniform_real_distribution<> m_dist;
+    std::function<float(float)> DerivativeActivationFunction; // TODO change to use 'reverse mode automatic differentiation'
+    std::function<float(size_t, float, float)> LossFunction;
 };
