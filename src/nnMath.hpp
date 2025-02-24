@@ -5,7 +5,6 @@
 #include <ios>
 #include <iosfwd>
 #include <iostream>
-#include <ostream>
 #include <sstream>
 #include <string>
 
@@ -40,8 +39,6 @@ static float dot(std::vector<float> lhs, std::vector<float> rhs)
 
 static std::vector<std::vector<float>> outer(std::vector<float> u, std::vector<float> v)
 {
-    _ASSERT(u.size() == v.size());
-
     std::vector<std::vector<float>> matOut(u.size(), std::vector<float>(v.size()));
     for (size_t r = 0; r < u.size(); r++)
     {
