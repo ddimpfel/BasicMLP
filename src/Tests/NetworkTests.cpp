@@ -33,7 +33,8 @@ protected:
             {{0.8f, 0.3f}, {0.4f, 0.2f}},
             {{0.6f, 0.8f}, {0.9f, 0.1f}}
         };
-        network = new Network(2, TestActivationSigmoid, TestDerivativeActivationSigmoid, TestLossMSE, weights);
+        std::vector<std::vector<float>> biases{ {0.f, 0.f}, {0.f, 0.f} };
+        network = new Network({2, 2, 2}, TestActivationSigmoid, TestDerivativeActivationSigmoid, TestLossMSE, weights, biases);
     }
 
     void TearDown() override
@@ -108,13 +109,13 @@ TEST_F(NetworkTest, BackpropagationChangesWeights)
     std::vector<float> expected = { 0.05f, 0.95f };
 
     // Store initial weights
-    auto initial_weights = network->CopyWeights();
+    auto initial_weights = network->copyWeights();
 
     // Perform single training step
     network->Fit(inputs, expected);
 
     // Get updated weights
-    auto updated_weights = network->CopyWeights();
+    auto updated_weights = network->copyWeights();
 
     // Verify weights have changed
     EXPECT_NE(initial_weights, updated_weights);

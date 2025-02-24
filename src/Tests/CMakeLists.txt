@@ -18,6 +18,8 @@ enable_testing()
 
 set(CPP_FILES  
     ../Network.cpp
+    ../Layer.cpp 
+    ../Neuron.cpp
 )
 set(HPP_FILES 
     ../Network.hpp 
