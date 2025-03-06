@@ -38,12 +38,20 @@ public:
 
     const std::vector<std::vector<float>>& getLayerOutputs() const;
 
+    void setLearningRate(float lr)
+    {
+        m_learningRate = lr;
+    }
+
     /*!
-     *   @brief Used for testing the network, a needs to be made to compare to
-     *
-     *      @return hard copy of weights 3d vector
+     *  @return hard copy of weights 3d vector
      */
     std::vector<std::vector<std::vector<float>>> copyWeights();
+
+    /*!
+     *  @return hard copy of biases 2d vector
+     */
+    std::vector<std::vector<float>> copyBiases();
 
 private:
     void InitLayersPreset(
@@ -79,20 +87,20 @@ private:
      *      @param [in] expectedOutputs: std::vector<float>
      *      @param [in] learningRate: float
      */
-    void BackwardPropagation(const std::vector<float>& expectedOutputs, float learningRate = 1);
+    void BackwardPropagation(const std::vector<float>& expectedOutputs);
 
     std::vector<float> CalculateLossPreviousLayer(std::vector<float> currentLoss, size_t currentLayer, size_t numNeurons);
 
     void ApplyGradients(
         std::vector<std::vector<std::vector<float>>>& weightGradients, 
-        std::vector<std::vector<float>>& biasGradients, 
-        float learningRate
+        std::vector<std::vector<float>>& biasGradients
     );
 
     std::vector<int> m_architecture;
     std::vector<Layer> m_layers;
     std::vector<std::vector<float>> m_layerOutputs;
 
+    float m_learningRate;
     std::function<float(float)> DerivativeActivationFunction; // TODO change to use 'reverse mode automatic differentiation'
     std::function<float(size_t, float, float)> LossFunction;
 };

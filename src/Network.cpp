@@ -15,7 +15,8 @@
 Network::Network() = default;
 
 /*!
- *  @brief Create a FFNN using an initial network architecture.
+ *  @brief Create a FFNN using an initial network architecture. Learning rate defaults to 0.1f,
+ *      use setLearningRate(float) after construction. Weights and biases are randomly generated.
  *
  *      @param [in] initialArchitecture - Represents the input, each layer,
  *      and the neurons in their layers.
@@ -43,8 +44,9 @@ Network::Network(
     std::unique_ptr<std::mt19937> gen
 )   : 
     m_architecture(initialArchitecture),
+    m_learningRate(0.1f),
     DerivativeActivationFunction(DerivativeActivationFunction),
-    LossFunction(LossFunction) 
+    LossFunction(LossFunction)
 {
     if (initialArchitecture.size() < 3)
     {
@@ -65,7 +67,8 @@ Network::Network(
 }
 
 /*!
- *  @brief Create a FFNN using an initial network architecture.
+ *  @brief Create a FFNN using an initial network architecture. Learning rate defaults to 0.1f,
+ *      use setLearningRate(float) after construction. Weights and biases are preset and loaded in.
  *
  *      @param [in] initialArchitecture - Represents the input, each layer,
  *      and the neurons in their layers.
@@ -95,6 +98,7 @@ Network::Network(
     std::vector<std::vector<float>>& biases
 ) :
     m_architecture(initialArchitecture),
+    m_learningRate(0.1f),
     DerivativeActivationFunction(DerivativeActivationFunction),
     LossFunction(LossFunction)
 {
@@ -221,7 +225,7 @@ std::vector<float>& Network::ForwardPass(const std::vector<float>& inputs)
  *      @param [in] expectedOutputs: correct outputs of network
  *      @param [in] learningRate: scalar effecting gradient descent velocity
  */
-void Network::BackwardPropagation(const std::vector<float>& expectedOutputs, float learningRate)
+void Network::BackwardPropagation(const std::vector<float>& expectedOutputs)
 {
     std::vector<float>& predicted = m_layerOutputs.back();
 
@@ -253,7 +257,7 @@ void Network::BackwardPropagation(const std::vector<float>& expectedOutputs, flo
         loss = CalculateLossPreviousLayer(loss, l, numNeurons);
     }
 
-    ApplyGradients(weightGradients, biasGradients, learningRate);
+    ApplyGradients(weightGradients, biasGradients);
 }
 
 std::vector<float> Network::CalculateLossPreviousLayer(std::vector<float> currentLoss, size_t currentLayer, size_t numNeurons)
@@ -282,8 +286,7 @@ std::vector<float> Network::CalculateLossPreviousLayer(std::vector<float> curren
 
 void Network::ApplyGradients(
     std::vector<std::vector<std::vector<float>>>& weightGradients, 
-    std::vector<std::vector<float>>& biasGradients, 
-    float learningRate)
+    std::vector<std::vector<float>>& biasGradients)
 {
     // Start from first hidden layer (first with incoming weights/biases)
     for (size_t l = 1; l < m_layers.size(); l++) 
@@ -296,9 +299,9 @@ void Network::ApplyGradients(
             auto& weights = neurons[n].weights();
             for (size_t w = 0; w < weights.size(); w++) 
             {
-                weights[w] -= learningRate * weightGradients[l][n][w];
+                weights[w] -= m_learningRate * weightGradients[l][n][w];
             }
-            neurons[n].bias() -= learningRate * biasGradients[l][n];
+            neurons[n].bias() -= m_learningRate * biasGradients[l][n];
         }
     }
 }
@@ -322,4 +325,21 @@ std::vector<std::vector<std::vector<float>>> Network::copyWeights()
         weights.push_back(std::move(layerWeights));
     }
     return weights;
+}
+
+std::vector<std::vector<float>> Network::copyBiases()
+{
+    std::vector<std::vector<float>> biases;
+    biases.reserve(m_layers.size());
+    for (auto& layer : m_layers)
+    {
+        std::vector<float> layerBiases;
+        layerBiases.reserve(layer.getNeurons().size());
+        for (auto& neuron : layer.neurons())
+        {
+            layerBiases.push_back(neuron.bias());
+        }
+        biases.push_back(std::move(layerBiases));
+    }
+    return biases;
 }

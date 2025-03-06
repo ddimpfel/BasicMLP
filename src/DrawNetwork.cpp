@@ -83,7 +83,7 @@ static void DrawNetwork(const Network& nn, SimpleWindow& window,
             circle.setPosition({x, y});
             circle.setFillColor(sf::Color(255, 255, 255, 
                 static_cast<uint8_t>(255 * outputs[n])));
-            window.draw(circle);
+            window.Draw(circle);
 
             // Connect this neuron to the next layer's neurons
             if (l < layerCount - 1)
@@ -116,5 +116,5 @@ static void DrawNetwork(const Network& nn, SimpleWindow& window,
         x += horizontalGap;
     }
 
-    window.draw(vertices);
+    window.Draw(vertices);
 }
