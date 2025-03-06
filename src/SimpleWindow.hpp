@@ -13,17 +13,16 @@ public:
 	SimpleWindow(const std::string& l_title, const sf::Vector2u& l_size);
 	~SimpleWindow();
 
-	void processEvents(sf::View& mainView);
+	void ProcessEvents(sf::View& mainView);
 
-	void toggleFullscreen();
+	void ToggleFullscreen();
+
+	void BeginDraw();
+	void EndDraw();
+	void Draw(const sf::Drawable& l_drawable);
+
 	void setFramerate(unsigned int l_limit);
-
-	void updateView(sf::View& view);
-
-	void beginDraw();
-	void endDraw();
-
-	void draw(const sf::Drawable& l_drawable);
+	void setView(sf::View& v);
 
 	bool isOpen() const;
 	bool isFullscreen() const;
@@ -32,11 +31,12 @@ public:
 	unsigned int getFramerate() const;
 	sf::RenderTarget& getRenderTarget();
 	sf::RenderWindow& get();
+	sf::View& getView();
 
 private:
-	void setup(const std::string& l_title, const sf::Vector2u& l_size);
-	void destroy();
-	void create();
+	void Setup(const std::string& l_title, const sf::Vector2u& l_size);
+	void Destroy();
+	void Create();
 
 	sf::RenderWindow m_window;
 	sf::View m_view;

@@ -12,36 +12,36 @@
 #include <SFML/Window/WindowEnums.hpp>
 #include <imgui-SFML.h>
 
-SimpleWindow::SimpleWindow() { setup("Window", sf::Vector2u(640, 480)); }
+SimpleWindow::SimpleWindow() { Setup("Window", sf::Vector2u(640, 480)); }
 SimpleWindow::SimpleWindow(const std::string& l_title, const sf::Vector2u& l_size)
 {
-	setup(l_title, l_size);
+	Setup(l_title, l_size);
 }
-SimpleWindow::~SimpleWindow() { destroy(); }
+SimpleWindow::~SimpleWindow() { Destroy(); }
 
-void SimpleWindow::setup(const std::string& l_title, const sf::Vector2u& l_size)
+void SimpleWindow::Setup(const std::string& l_title, const sf::Vector2u& l_size)
 {
 	m_windowTitle = l_title;
 	m_uWindowSize = l_size;
 	m_fWindowSize = static_cast<sf::Vector2f>(l_size);
 	m_isFullscreen = false;
 	m_isOpen = true;
-	create();
+	Create();
 };
 
-void SimpleWindow::create()
+void SimpleWindow::Create()
 {
 	auto state = (m_isFullscreen ? sf::State::Fullscreen : sf::State::Windowed);
 	m_window.create(sf::VideoMode({ m_uWindowSize.x, m_uWindowSize.y }),
 		m_windowTitle, state, {0, 0, 8});
 }
 
-void SimpleWindow::destroy()
+void SimpleWindow::Destroy()
 {
 	m_window.close();
 }
 
-void SimpleWindow::processEvents(sf::View& mainView)
+void SimpleWindow::ProcessEvents(sf::View& mainView)
 {
 	while (const auto event = m_window.pollEvent()) 
 	{
@@ -50,7 +50,7 @@ void SimpleWindow::processEvents(sf::View& mainView)
 		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) 
 		{
 			if (keyPressed->scancode == sf::Keyboard::Scancode::F5)
-				toggleFullscreen();
+				ToggleFullscreen();
 		}
 		else if (const auto* resize = event->getIf<sf::Event::Resized>()) 
 		{
@@ -67,12 +67,16 @@ void SimpleWindow::processEvents(sf::View& mainView)
 	m_window.setView(mainView);
 }
 
-void SimpleWindow::toggleFullscreen()
+void SimpleWindow::ToggleFullscreen()
 {
 	m_isFullscreen = !m_isFullscreen;
-	destroy();
-	create();
+	Destroy();
+	Create();
 }
+
+void SimpleWindow::BeginDraw() { m_window.clear(sf::Color::Black); }
+void SimpleWindow::EndDraw() { m_window.display(); }
+void SimpleWindow::Draw(const sf::Drawable& l_drawable) { m_window.draw(l_drawable); }
 
 void SimpleWindow::setFramerate(unsigned int l_limit)
 {
@@ -80,10 +84,12 @@ void SimpleWindow::setFramerate(unsigned int l_limit)
 	m_window.setFramerateLimit(l_limit);
 }
 
-void SimpleWindow::beginDraw() { m_window.clear(sf::Color::Black); }
-void SimpleWindow::endDraw() { m_window.display(); }
+void SimpleWindow::setView(sf::View& v) 
+{ 
+	m_view = v;
+	m_window.setView(v); 
+}
 
-void SimpleWindow::draw(const sf::Drawable& l_drawable) { m_window.draw(l_drawable); }
 
 bool SimpleWindow::isOpen() const { return m_isOpen; }
 bool SimpleWindow::isFullscreen() const { return m_isFullscreen; }
@@ -92,4 +98,5 @@ const sf::Vector2f& SimpleWindow::getWindowSizeF() const { return m_fWindowSize;
 unsigned int SimpleWindow::getFramerate() const { return m_framerate; }
 sf::RenderTarget& SimpleWindow::getRenderTarget() { return m_window; }
 sf::RenderWindow& SimpleWindow::get() { return m_window; }
+sf::View& SimpleWindow::getView() { return m_view; }
 

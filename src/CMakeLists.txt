@@ -6,6 +6,7 @@ set(CPP_FILES
     Network.cpp
     Layer.cpp 
     Neuron.cpp
+    Noise.cpp
 )
 set(HPP_FILES 
     SimpleWindow.hpp
@@ -13,7 +14,8 @@ set(HPP_FILES
     Neuron.hpp
     Layer.hpp 
     nnMath.hpp 
-)
+    Noise.hpp
+ )
 
 # Build main executable linked to Network.cpp
 add_executable(
