@@ -103,16 +103,16 @@ int main()
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> dist{ 0.f, 1.f };
 
-    PerlinNoiseGenerator perlin(256);
-    float inc = 0.1;
-    float a = 2;
-    float b = 5;
-    for (size_t i = 0; i < 1000; i++)
-    {
-        std::cout << perlin.Noise(a, b) << ", ";
-        a += inc;
-        b += inc;
-    }
+    //PerlinNoiseGenerator perlin(256);
+    //float inc = 0.1;
+    //float a = 2;
+    //float b = 5;
+    //for (size_t i = 0; i < 1000; i++)
+    //{
+    //    std::cout << perlin.Noise(a, b) << ", ";
+    //    a += inc;
+    //    b += inc;
+    //}
 
     //Network nn;
     //BuildNetwork(nn, dist, gen);
