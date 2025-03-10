@@ -1,5 +1,5 @@
 # Track files in variable
-set(CPP_FILES  
+set(MAIN_SOURCES  
     Main.cpp
     SimpleWindow.cpp
     DrawNetwork.cpp
@@ -10,10 +10,7 @@ set(CPP_FILES
 )
 
 # Build main executable linked to Network.cpp
-add_executable(
-    ${PROJECT_NAME}
-    ${CPP_FILES}
-)
+add_executable(${PROJECT_NAME} ${MAIN_SOURCES})
 
 # Link against FastNoiseLite and ImGui-SFML
 target_link_libraries(
@@ -23,6 +20,10 @@ target_link_libraries(
     FastNoiseLite
 )
 
+target_include_directories(${PROJECT_NAME}
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
 # Sets the target project for Visual Studio
 set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER "Application")
