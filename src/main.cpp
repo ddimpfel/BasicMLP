@@ -14,7 +14,18 @@
 #include "Network.hpp"
 #include "DrawNetwork.cpp"
 #include <SFML/Graphics/View.hpp>
-#include "Noise.hpp"
+#include <FastNoiseLite.h>
+#include "Parameters.hpp"
+#include <cstdint>
+#include <SFML/Graphics/PrimitiveType.hpp>
+#include <SFML/Graphics/Sprite.hpp>
+#include <SFML/Graphics/Texture.hpp>
+#include <SFML/Graphics/Vertex.hpp>
+#include <SFML/Graphics/VertexArray.hpp>
+
+
+#define TWO_PI 2*3.14
+
 
 static float ActivationSigmoid(float x)
 {
@@ -85,9 +96,224 @@ void ShowNetworkVariablesWindow(std::uniform_real_distribution<float>& dist, std
 }
 
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Interesting noise generations
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+sf::Sprite GenerateHDPerlinNoiseMapEdgy(sf::View& view, sf::Texture& pixelBuffer, std::vector<uint8_t>& pixels)
+{
+    // Generate Perlin noise map
+    FastNoiseLite perlin;
+    perlin.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+
+    std::vector<float> noise(param::WIDTH * param::HEIGHT);
+
+    view.setCenter({ param::WIDTH / 2, param::HEIGHT / 2 });
+    int idx = 0;
+    for (size_t y = 0; y < param::HEIGHT; y++)
+    {
+        for (size_t x = 0; x < param::WIDTH; x++)
+        {
+            // [-1, 1] gives sharp edges with faded centers
+            noise[idx] = perlin.GetNoise((float)x, (float)y);
+            int pIdx = idx * 4;
+            pixels[pIdx] = noise[idx] * 255;
+            pixels[pIdx + 1] = noise[idx] * 255;
+            pixels[pIdx + 2] = noise[idx] * 255;
+            pixels[pIdx + 3] = 255;
+            idx++;
+        }
+    }
+
+    pixelBuffer.update(&pixels[0]);
+    sf::Sprite pixelSprite(pixelBuffer);
+    return pixelSprite;
+}
+
+sf::Sprite GenerateHDPerlinNoiseMapWhack(sf::View& view, sf::Texture& pixelBuffer, std::vector<uint8_t>& pixels)
+{
+    // Generate Perlin noise map
+    FastNoiseLite perlin;
+    perlin.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+
+    std::vector<float> noise(param::WIDTH * param::HEIGHT);
+
+    view.setCenter({ param::WIDTH / 2, param::HEIGHT / 2 });
+    int idx = 0;
+    for (size_t y = 0; y < param::HEIGHT; y++)
+    {
+        for (size_t x = 0; x < param::WIDTH; x++)
+        {
+            // [-0.5, 1.5] gives perlin noise with sharp islands of white or black
+            noise[idx] = perlin.GetNoise((float)x, (float)y) + 1.f / 2.f;
+            int pIdx = idx * 4;
+            pixels[pIdx] = noise[idx] * 255;
+            pixels[pIdx + 1] = noise[idx] * 255;
+            pixels[pIdx + 2] = noise[idx] * 255;
+            pixels[pIdx + 3] = 255;
+            idx++;
+        }
+    }
+
+    pixelBuffer.update(&pixels[0]);
+    sf::Sprite pixelSprite(pixelBuffer);
+    return pixelSprite;
+}
+
+sf::Sprite GenerateHDPerlinNoiseMap(sf::View& view, sf::Texture& pixelBuffer, std::vector<uint8_t>& pixels)
+{
+    // Generate Perlin noise map
+    FastNoiseLite perlin;
+    perlin.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    perlin.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+    perlin.SetFrequency(param::fNoiseFreq);      
+    perlin.SetFractalOctaves(param::NoiseOctaves);
+    perlin.SetFractalLacunarity(param::fNoiseLacunarity);
+    perlin.SetFractalGain(param::fNoiseGain);
+
+    std::vector<float> noise(param::WIDTH * param::HEIGHT);
+
+    view.setCenter({ param::WIDTH / 2, param::HEIGHT / 2 });
+    int idx = 0;
+
+    for (size_t y = 0; y < param::NoiseSize; y++)
+    {
+        for (size_t x = 0; x < param::NoiseSize; x++)
+        {
+            noise[idx] = (perlin.GetNoise((float)x, (float)y) + 1.f) / 2.f;
+            int pIdx = idx * 4;
+            pixels[pIdx] = noise[idx] * 255;
+            pixels[pIdx + 1] = noise[idx] * 255;
+            pixels[pIdx + 2] = noise[idx] * 255;
+            pixels[pIdx + 3] = 255;
+            idx++;
+        }
+    }
+
+    pixelBuffer.update(&pixels[0]);
+    sf::Sprite pixelSprite(pixelBuffer);
+    return pixelSprite;
+}
+
+sf::Sprite GeneratePerlinNoiseMap(sf::View& view, sf::Texture& noiseBuffer, std::vector<uint8_t>& pixels)
+{
+    // Generate Perlin noise map
+    FastNoiseLite perlin;
+    perlin.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    perlin.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+    perlin.SetFrequency(param::fNoiseFreq);
+    perlin.SetFractalOctaves(param::NoiseOctaves);
+    perlin.SetFractalLacunarity(param::fNoiseLacunarity);
+    perlin.SetFractalGain(param::fNoiseGain);
+
+    std::vector<float> noise(param::NoiseSize * param::NoiseSize);
+
+    sf::Vector2u size{ (unsigned int)param::NoiseSize, (unsigned int)param::NoiseSize };
+    noiseBuffer.resize(size);
+    pixels.resize(param::NoiseSize * param::NoiseSize * 4);
+
+    int idx = 0;
+    for (size_t y = 0; y < param::NoiseSize; y++)
+    {
+        for (size_t x = 0; x < param::NoiseSize; x++)
+        {
+            noise[idx] = (perlin.GetNoise((float)x, (float)y) + 1.f) / 2.f;
+            int pIdx = idx * 4;
+            pixels[pIdx] = noise[idx] * 255;
+            pixels[pIdx + 1] = noise[idx] * 255;
+            pixels[pIdx + 2] = noise[idx] * 255;
+            pixels[pIdx + 3] = 255;
+            idx++;
+        }
+    }
+
+    noiseBuffer.update(&pixels[0]);
+    sf::Sprite noiseSprite(noiseBuffer);
+
+    const sf::Vector2f& viewSize = view.getSize();
+    sf::Vector2f scale(viewSize.x / param::NoiseSize, viewSize.y / param::NoiseSize);
+    noiseSprite.scale(scale);
+    noiseSprite.setPosition(view.getCenter() - viewSize / 2.f);
+
+    return noiseSprite;
+}
+void ShowPerlinNoiseWindow(sf::Sprite& pixelSprite, sf::View& view, sf::Texture& pixelBuffer, std::vector<uint8_t>& pixels)
+{
+    ImGui::Begin("Noise Values");
+    bool valuesChanged = false;
+
+    valuesChanged |= ImGui::InputInt("Octaves", &param::NoiseOctaves);
+    valuesChanged |= ImGui::InputFloat("Frequency", &param::fNoiseFreq, 0.01, 0.05, "%.3f");
+    valuesChanged |= ImGui::InputFloat("Lacunarity", &param::fNoiseLacunarity, 0.05, 0.3, "%.2f");
+    valuesChanged |= ImGui::InputFloat("Gain", &param::fNoiseGain, 0.05, 0.3, "%.2f");
+
+    ImGui::End();
+
+    if (valuesChanged)
+        pixelSprite = GeneratePerlinNoiseMap(view, pixelBuffer, pixels);
+}
+
+// Draw a circle on a 2D Perlin noise map to create a wavy circle for display
+void GeneratePerlinNoiseLoop(sf::VertexArray& vertices, size_t vertexCount)
+{
+    FastNoiseLite perlin;
+    perlin.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    perlin.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+    perlin.SetFrequency(param::fNoiseFreq);                 // 0.01
+    perlin.SetFractalOctaves(param::NoiseOctaves);          // 1
+    perlin.SetFractalLacunarity(param::fNoiseLacunarity);   // 2
+    perlin.SetFractalGain(param::fNoiseGain);               // 0.5
+
+    size_t idx = 0;
+    for (size_t a = 0; a < vertexCount; a++)
+    {
+        float angle = (static_cast<float>(a) / param::VertexMultiplier);    // 20
+        float xOff = (cos(angle) + 1) * param::fOffsetMultiplier;           // 65
+        float yOff = (sin(angle) + 1) * param::fOffsetMultiplier;
+        float r = (perlin.GetNoise(xOff, yOff) + 1) * 50 + 100; // radius mapped to 100-200
+        float x = r * cos(angle);
+        float y = r * sin(angle);
+        vertices[idx++] = sf::Vertex{ {x, y} };
+    }
+    vertices[idx] = vertices[0]; // Connect last point to beginning
+}
+void ShowPerlinNoiseLoopWindow(sf::VertexArray& vertices, size_t vertexCount)
+{
+    ImGui::Begin("Loop Values");
+    bool valuesChanged = false;
+
+    valuesChanged |= ImGui::InputInt("Octaves", &param::NoiseOctaves, 1);
+    valuesChanged |= ImGui::DragFloat("Frequency", &param::fNoiseFreq, 0.005f);
+    valuesChanged |= ImGui::DragFloat("Lacunarity", &param::fNoiseLacunarity, 0.05f);
+    valuesChanged |= ImGui::DragFloat("Gain", &param::fNoiseGain, 0.05f);
+
+    ImGui::TextUnformatted("Path Multipliers");
+
+    valuesChanged |= ImGui::DragInt("Vertex", &param::VertexMultiplier, 1);
+    valuesChanged |= ImGui::DragFloat("Offset", &param::fOffsetMultiplier, 1);
+
+    ImGui::End();
+
+    if (valuesChanged)
+    {
+        vertexCount = TWO_PI * param::VertexMultiplier;
+        vertices.resize(vertexCount+1);
+        GeneratePerlinNoiseLoop(vertices, vertexCount);
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 int main() 
 {
-    SimpleWindow m_window{ "Neural Network Builder", {1280, 720} };
+    SimpleWindow m_window{ "Neural Network Builder", {param::WIDTH, param::HEIGHT} };
     if (!ImGui::SFML::Init(m_window.get()))
         return -1;
 
@@ -99,25 +325,22 @@ int main()
     sf::Clock m_clock;
     sf::Time m_deltaTime;
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> dist{ 0.f, 1.f };
+    //std::random_device rd;
+    //std::mt19937 gen(rd());
+    //std::uniform_real_distribution<float> dist{ 0.f, 1.f };
 
-    //PerlinNoiseGenerator perlin(256);
-    //float inc = 0.1;
-    //float a = 2;
-    //float b = 5;
-    //for (size_t i = 0; i < 1000; i++)
-    //{
-    //    std::cout << perlin.Noise(a, b) << ", ";
-    //    a += inc;
-    //    b += inc;
-    //}
+    //std::vector<uint8_t> pixels(param::WIDTH * param::HEIGHT * 4);
+    //sf::Texture pixelBuffer{ sf::Vector2u(param::WIDTH, param::HEIGHT) };
+    //sf::Sprite pixelSprite = GeneratePerlinNoiseMap(view, pixelBuffer, pixels);
 
     //Network nn;
     //BuildNetwork(nn, dist, gen);
     //std::vector<float> inputs = { dist(gen), dist(gen), dist(gen), dist(gen) };//, dist(gen), dist(gen), dist(gen) };
     //std::vector<float> expected = { 0.f, 0.95f };//, 1.f, 0.0f, 0.f, 0.f, 0.95f, 1.f, 0.0f, 0.f, 0.f, 0.95f, 1.f, 0.0f, 0.f, 0.f, 0.95f, 1.f, 0.0f, 0.f, };
+
+    size_t vertexCount = TWO_PI * param::VertexMultiplier;
+    sf::VertexArray vertices{ sf::PrimitiveType::LineStrip, vertexCount + 1 };
+    GeneratePerlinNoiseLoop(vertices, vertexCount);
 
     int framecounter = 0;
     while (m_window.isOpen())
@@ -130,12 +353,19 @@ int main()
         ImGui::SFML::Update(m_window.get(), m_deltaTime);
 
         ImGui::ShowMetricsWindow();
+        
         //ShowNetworkVariablesWindow();
-
+        //ShowPerlinNoiseWindow(pixelSprite, view, pixelBuffer, pixels);
+        ShowPerlinNoiseLoopWindow(vertices, vertexCount);
+        
         m_window.ProcessEvents(view); // Also processes ImGui events
 
         m_window.BeginDraw();
+        m_window.Draw(vertices);
+
+        //m_window.Draw(pixelSprite);
         //DrawNetwork(nn, m_window, view.getCenter() / 2.f, 20.f);
+
         ImGui::SFML::Render(m_window.get());
         m_window.EndDraw();
 
