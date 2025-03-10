@@ -14,4 +14,10 @@ float fNoiseGain = 0.5f;
 
 float fOffsetMultiplier = 100;
 int VertexMultiplier = 20;
+
+float fInnerRadiusMin = 100.f;
+float fInnerRadiusScalar = 50.f;
+
+float fPerlinPathWidth = 20.f;
+
 }
