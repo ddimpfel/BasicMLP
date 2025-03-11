@@ -332,7 +332,7 @@ void ShowPerlinNoiseLoopWindow(sf::VertexArray& vertices, size_t vertexCount)
 void GeneratePerlinNoisePath(sf::VertexArray& verticesInner, sf::VertexArray& verticesOuter, size_t vertexCount)
 {
     FastNoiseLite perlin;
-    perlin.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    perlin.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
     perlin.SetFractalType(FastNoiseLite::FractalType_FBm);
 
     // Modify Noise parameters                              // Ideal values for simple loop
@@ -382,7 +382,12 @@ void ShowPerlinNoisePathWindow(sf::VertexArray& verticesInner, sf::VertexArray& 
     ImGui::NewLine();
     ImGui::TextUnformatted("Path");
 
-    valuesChanged |= ImGui::DragInt("Vertices", &param::VertexMultiplier, 1);
+    // Clamp vertices to be non negative, avoid vector underflow
+    int clampVertexMultiplier = param::VertexMultiplier;
+    valuesChanged |= ImGui::DragInt("Vertices", &clampVertexMultiplier, 1);
+    if (valuesChanged && clampVertexMultiplier > 0)
+        param::VertexMultiplier = clampVertexMultiplier;
+
     valuesChanged |= ImGui::DragFloat("Offset", &param::fOffsetMultiplier, 1.f);
     valuesChanged |= ImGui::DragFloat("Width", &param::fPerlinPathWidth, 1.f);
 
