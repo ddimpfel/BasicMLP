@@ -22,6 +22,8 @@
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/Vertex.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
+#include <box2d/types.h>
+#include <box2d/box2d.h>
 
 
 #define TWO_PI 2*3.14
@@ -265,6 +267,30 @@ void ShowPerlinNoiseWindow(sf::Sprite& pixelSprite, sf::View& view, sf::Texture&
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Physics helpers
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+enum CollisionCategories
+{
+    C_WALL = 0b0001,
+    C_CIRCLE = 0b0010,
+};
+
+b2ChainId CreateChainBody(b2BodyId body, int32_t pointCount, std::vector<b2Vec2>& points)
+{
+
+    b2ChainDef chain = b2DefaultChainDef();
+    chain.count = pointCount;
+    chain.points = points.data();
+    chain.filter.categoryBits = C_WALL;
+    chain.filter.maskBits = C_CIRCLE;
+    chain.isLoop = true;
+
+    return b2CreateChain(body, &chain);
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Draw a circle on a 2D Perlin noise map to create a wavy circle for display
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -289,8 +315,8 @@ void GeneratePerlinNoiseLoop(sf::VertexArray& vertices, size_t vertexCount)
         float angle = (static_cast<float>(a) / param::VertexMultiplier);
 
         // x and y of circle for noise values
-        float xOff = (cos(angle) + 1) * param::fOffsetMultiplier;
-        float yOff = (sin(angle) + 1) * param::fOffsetMultiplier;
+        float xOff = (cos(angle) + 1) * param::fNoiseRadialMultiplier;
+        float yOff = (sin(angle) + 1) * param::fNoiseRadialMultiplier;
 
         // determine radius by perlin noise (x, y) value
         float r = (perlin.GetNoise(xOff, yOff) + 1) * 50 + 100; // radius mapped to 100-200
@@ -317,7 +343,7 @@ void ShowPerlinNoiseLoopWindow(sf::VertexArray& vertices, size_t vertexCount)
     ImGui::TextUnformatted("Path Multipliers");
 
     valuesChanged |= ImGui::DragInt("Vertex", &param::VertexMultiplier, 1);
-    valuesChanged |= ImGui::DragFloat("Offset", &param::fOffsetMultiplier, 1);
+    valuesChanged |= ImGui::DragFloat("Offset", &param::fNoiseRadialMultiplier, 1);
 
     ImGui::End();
 
@@ -329,9 +355,11 @@ void ShowPerlinNoiseLoopWindow(sf::VertexArray& vertices, size_t vertexCount)
     }
 }
 
-void GeneratePerlinNoisePath(sf::VertexArray& verticesInner, sf::VertexArray& verticesOuter, size_t vertexCount)
+void GenerateSimplexNoisePath(int seed, size_t vertexCount, sf::VertexArray& displayVerticesInner, sf::VertexArray& displayVerticesOuter,
+    std::vector<b2Vec2>& chainVerticesInner, std::vector<b2Vec2>& chainVerticesOuter)
 {
     FastNoiseLite perlin;
+    perlin.SetSeed(seed);
     perlin.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
     perlin.SetFractalType(FastNoiseLite::FractalType_FBm);
 
@@ -349,27 +377,33 @@ void GeneratePerlinNoisePath(sf::VertexArray& verticesInner, sf::VertexArray& ve
         float angle = (static_cast<float>(a) / param::VertexMultiplier);    // 20
 
         // x and y of circle for noise values
-        float xOff = (cos(angle) + 1) * param::fOffsetMultiplier;           // 65
-        float yOff = (sin(angle) + 1) * param::fOffsetMultiplier;           // 65
+        float xOff = (cos(angle) + 1) * param::fNoiseRadialMultiplier;      // 65
+        float yOff = (sin(angle) + 1) * param::fNoiseRadialMultiplier;      // 65
 
         // Determine inner radius for x and y in world coordinates
-        float rInner = (perlin.GetNoise(xOff, yOff) + 1) * param::fInnerRadiusScalar + param::fInnerRadiusMin; // radius mapped to min to (min + 2*scalar)
+        float rInner = (perlin.GetNoise(xOff, yOff) + 1) * param::fInnerRadiusScalar + param::fInnerRadiusMin; // radius mapped from min to (min + 2*scalar)
         float xInner = rInner * cos(angle);
         float yInner = rInner * sin(angle);
-        verticesInner[idx] = sf::Vertex{ {xInner, yInner} };
+        displayVerticesInner[idx] = sf::Vertex{ {xInner, yInner} };
+        chainVerticesInner[idx] = b2Vec2{ xInner / param::fBOX2D_SCALE, yInner / param::fBOX2D_SCALE };
 
         // Determine outer radius based on inner, ensuring always further away
-        float rOuter = rInner + param::fPerlinPathWidth;
+        float rOuter = rInner + param::fPathWidth;
         float xOuter = rOuter * cos(angle);
         float yOuter = rOuter * sin(angle);
-        verticesOuter[idx++] = sf::Vertex{ {xOuter, yOuter} };
+        displayVerticesOuter[idx] = sf::Vertex{ {xOuter, yOuter} };
+        chainVerticesOuter[idx++] = b2Vec2{ xOuter / param::fBOX2D_SCALE, yOuter / param::fBOX2D_SCALE };
     }
     // Connect last point to beginning
-    verticesInner[idx] = verticesInner[0];
-    verticesOuter[idx] = verticesOuter[0];
+    displayVerticesInner[idx] = displayVerticesInner[0];
+    displayVerticesOuter[idx] = displayVerticesOuter[0];
+
+    // Reverse outer chain winding for collision
+    std::reverse(chainVerticesOuter.begin(), chainVerticesOuter.end());
 }
 
-void ShowPerlinNoisePathWindow(sf::VertexArray& verticesInner, sf::VertexArray& verticesOuter, size_t vertexCount)
+void ShowSimplexNoisePathWindow(int seed, size_t vertexCount, sf::VertexArray& displayVerticesInner, sf::VertexArray& displayVerticesOuter, 
+    std::vector<b2Vec2>& chainVerticesInner, std::vector<b2Vec2>& chainVerticesOuter, b2ChainId* chainOuter, b2BodyId bodyOuter)
 {
     ImGui::Begin("Loop Values");
     bool valuesChanged = false;
@@ -378,6 +412,7 @@ void ShowPerlinNoisePathWindow(sf::VertexArray& verticesInner, sf::VertexArray& 
     valuesChanged |= ImGui::DragFloat("Frequency", &param::fNoiseFreq, 0.005f);
     valuesChanged |= ImGui::DragFloat("Lacunarity", &param::fNoiseLacunarity, 0.05f);
     valuesChanged |= ImGui::DragFloat("Gain", &param::fNoiseGain, 0.05f);
+    valuesChanged |= ImGui::DragFloat("Offset", &param::fNoiseRadialMultiplier, 1.f);
 
     ImGui::NewLine();
     ImGui::TextUnformatted("Path");
@@ -388,25 +423,29 @@ void ShowPerlinNoisePathWindow(sf::VertexArray& verticesInner, sf::VertexArray& 
     if (valuesChanged && clampVertexMultiplier > 0)
         param::VertexMultiplier = clampVertexMultiplier;
 
-    valuesChanged |= ImGui::DragFloat("Offset", &param::fOffsetMultiplier, 1.f);
-    valuesChanged |= ImGui::DragFloat("Width", &param::fPerlinPathWidth, 1.f);
+    valuesChanged |= ImGui::DragFloat("Radius Minimum", &param::fInnerRadiusMin, 1.f);
+    valuesChanged |= ImGui::DragFloat("Radius Scalar", &param::fInnerRadiusScalar, 1.f);
+    valuesChanged |= ImGui::DragFloat("Width", &param::fPathWidth, 1.f);
 
     ImGui::End();
 
     if (valuesChanged)
     {
         vertexCount = TWO_PI * param::VertexMultiplier;
-        verticesInner.resize(vertexCount + 1);
-        verticesOuter.resize(vertexCount + 1);
-        GeneratePerlinNoisePath(verticesInner, verticesOuter, vertexCount);
+        displayVerticesInner.resize(vertexCount + 1);
+        displayVerticesOuter.resize(vertexCount + 1);
+        chainVerticesInner.resize(vertexCount);
+        chainVerticesOuter.resize(vertexCount);
+        GenerateSimplexNoisePath(seed, vertexCount, displayVerticesInner, displayVerticesOuter, chainVerticesInner, chainVerticesOuter);
+        
+        b2DestroyChain(*chainOuter);
+        *chainOuter = CreateChainBody(bodyOuter, vertexCount, chainVerticesOuter);
     }
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 int main() 
 {
@@ -435,11 +474,56 @@ int main()
     //std::vector<float> inputs = { dist(gen), dist(gen), dist(gen), dist(gen) };//, dist(gen), dist(gen), dist(gen) };
     //std::vector<float> expected = { 0.f, 0.95f };//, 1.f, 0.0f, 0.f, 0.f, 0.95f, 1.f, 0.0f, 0.f, 0.f, 0.95f, 1.f, 0.0f, 0.f, 0.f, 0.95f, 1.f, 0.0f, 0.f, };
 
+
+    /*!
+     *  Code for race track arena and collisions
+     */
     size_t vertexCount = TWO_PI * param::VertexMultiplier;
+
+    b2WorldDef worldDef = b2DefaultWorldDef();
+    worldDef.gravity = { 0.f, 0.f };
+    b2WorldId world = b2CreateWorld(&worldDef);
+  
+    std::vector<b2Vec2> chainVerticesInner(vertexCount);
+    std::vector<b2Vec2> chainVerticesOuter(vertexCount);
+
     //sf::VertexArray vertices{ sf::PrimitiveType::LineStrip, vertexCount + 1 };
-    sf::VertexArray verticesInner{ sf::PrimitiveType::LineStrip, vertexCount + 1 };
-    sf::VertexArray verticesOuter{ sf::PrimitiveType::LineStrip, vertexCount + 1 };
-    GeneratePerlinNoisePath(verticesInner, verticesOuter, vertexCount);
+    sf::VertexArray displayVerticesInner{ sf::PrimitiveType::LineStrip, vertexCount + 1 };
+    sf::VertexArray displayVerticesOuter{ sf::PrimitiveType::LineStrip, vertexCount + 1 };
+    GenerateSimplexNoisePath(param::SEED, vertexCount, displayVerticesInner, displayVerticesOuter, chainVerticesInner, chainVerticesOuter);
+
+    // Create physics bodies
+    // Inner body
+    b2BodyDef bodyDef1 = b2DefaultBodyDef();
+    bodyDef1.type = b2_staticBody;
+    b2BodyId bodyInner = b2CreateBody(world, &bodyDef1);
+    b2ChainId chainInner = CreateChainBody(bodyInner, vertexCount, chainVerticesInner);
+
+    // Outer body
+    b2BodyDef bodyDef2 = b2DefaultBodyDef();
+    bodyDef2.type = b2_staticBody;
+    b2BodyId bodyOuter = b2CreateBody(world, &bodyDef2);
+    b2ChainId chainOuter = CreateChainBody(bodyOuter, vertexCount, chainVerticesOuter);
+
+    // Test collider
+    b2BodyDef dynamicBody = b2DefaultBodyDef();
+    dynamicBody.type = b2_dynamicBody;
+    dynamicBody.position = { -param::WIDTH / 2 / param::fBOX2D_SCALE, 0.f};
+    dynamicBody.linearVelocity = { 3.f, 0.f };
+    b2BodyId circleBody = b2CreateBody(world, &dynamicBody);
+    
+    b2Circle circle{};
+    circle.radius = 20.f / param::fBOX2D_SCALE;
+    circle.center = b2Vec2(0.f, 0.f);
+
+    b2ShapeDef circleDef = b2DefaultShapeDef();
+    circleDef.filter.categoryBits = C_CIRCLE;
+    circleDef.filter.maskBits = C_WALL;
+    circleDef.enableContactEvents = true;
+    b2CreateCircleShape(circleBody, &circleDef, &circle);
+
+    sf::CircleShape displayCircle{ circle.radius * param::fBOX2D_SCALE };
+    displayCircle.setOrigin({ circle.radius * param::fBOX2D_SCALE, circle.radius * param::fBOX2D_SCALE });
 
     int framecounter = 0;
     while (m_window.isOpen())
@@ -448,21 +532,36 @@ int main()
         //if (framecounter % 10 == 0)
         //  nn.Fit(inputs, expected);
 
+        // Update
         m_deltaTime = m_clock.restart();
         ImGui::SFML::Update(m_window.get(), m_deltaTime);
+        b2World_Step(world, m_deltaTime.asSeconds(), 4);
 
+        // Debug windows
         ImGui::ShowMetricsWindow();
-        
         //ShowNetworkVariablesWindow();
         //ShowPerlinNoiseWindow(pixelSprite, view, pixelBuffer, pixels);
         //ShowPerlinNoiseLoopWindow(vertices, vertexCount);
-        ShowPerlinNoisePathWindow(verticesInner, verticesOuter, vertexCount);
+        ShowSimplexNoisePathWindow(param::SEED, vertexCount, displayVerticesInner, displayVerticesOuter,
+            chainVerticesInner, chainVerticesOuter, &chainOuter, bodyOuter);
 
+        const b2Vec2& circlePos = b2Body_GetPosition(circleBody);
+        displayCircle.setPosition({ circlePos.x * param::fBOX2D_SCALE, circlePos.y * param::fBOX2D_SCALE });
+
+        ImGui::Begin("Physics Debug");
+        ImGui::Text("Circle Position: (%.2f, %.2f)", circlePos.x * param::fBOX2D_SCALE, circlePos.y * param::fBOX2D_SCALE);
+        ImGui::Text("Circle Velocity: (%.2f, %.2f)",
+            b2Body_GetLinearVelocity(circleBody).x,
+            b2Body_GetLinearVelocity(circleBody).y);
+        ImGui::End();
+        
         m_window.ProcessEvents(view); // Also processes ImGui events
 
+        // Display
         m_window.BeginDraw();
-        m_window.Draw(verticesInner);
-        m_window.Draw(verticesOuter);
+        m_window.Draw(displayVerticesInner);
+        m_window.Draw(displayVerticesOuter);
+        m_window.Draw(displayCircle);
 
         //m_window.Draw(pixelSprite);
         //DrawNetwork(nn, m_window, view.getCenter() / 2.f, 20.f);

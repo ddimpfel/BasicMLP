@@ -18,6 +18,7 @@ target_link_libraries(
     PRIVATE
     ImGui-SFML::ImGui-SFML
     FastNoiseLite
+    box2d::box2d
 )
 
 target_include_directories(${PROJECT_NAME}
