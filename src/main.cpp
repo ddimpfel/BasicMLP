@@ -24,6 +24,11 @@
 #include <SFML/Graphics/VertexArray.hpp>
 #include <box2d/types.h>
 #include <box2d/box2d.h>
+#include <box2d/collision.h>
+#include <box2d/id.h>
+#include <box2d/math_functions.h>
+#include <SFML/Graphics/Color.hpp>
+#include <SFML/Graphics/RectangleShape.hpp>
 
 
 #define TWO_PI 2*3.14
@@ -113,13 +118,13 @@ sf::Sprite GenerateHDPerlinNoiseMapEdgy(sf::View& view, sf::Texture& pixelBuffer
     FastNoiseLite perlin;
     perlin.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
 
-    std::vector<float> noise(param::WIDTH * param::HEIGHT);
+    std::vector<float> noise(param::iWIDTH * param::iHEIGHT);
 
-    view.setCenter({ param::WIDTH / 2, param::HEIGHT / 2 });
+    view.setCenter({ param::iWIDTH / 2, param::iHEIGHT / 2 });
     int idx = 0;
-    for (size_t y = 0; y < param::HEIGHT; y++)
+    for (size_t y = 0; y < param::iHEIGHT; y++)
     {
-        for (size_t x = 0; x < param::WIDTH; x++)
+        for (size_t x = 0; x < param::iWIDTH; x++)
         {
             // [-1, 1] gives sharp edges with faded centers
             noise[idx] = perlin.GetNoise((float)x, (float)y);
@@ -143,13 +148,13 @@ sf::Sprite GenerateHDPerlinNoiseMapWhack(sf::View& view, sf::Texture& pixelBuffe
     FastNoiseLite perlin;
     perlin.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
 
-    std::vector<float> noise(param::WIDTH * param::HEIGHT);
+    std::vector<float> noise(param::iWIDTH * param::iHEIGHT);
 
-    view.setCenter({ param::WIDTH / 2, param::HEIGHT / 2 });
+    view.setCenter({ param::iWIDTH / 2, param::iHEIGHT / 2 });
     int idx = 0;
-    for (size_t y = 0; y < param::HEIGHT; y++)
+    for (size_t y = 0; y < param::iHEIGHT; y++)
     {
-        for (size_t x = 0; x < param::WIDTH; x++)
+        for (size_t x = 0; x < param::iWIDTH; x++)
         {
             // [-0.5, 1.5] gives perlin noise with sharp islands of white or black
             noise[idx] = perlin.GetNoise((float)x, (float)y) + 1.f / 2.f;
@@ -175,18 +180,18 @@ sf::Sprite GenerateHDPerlinNoiseMap(sf::View& view, sf::Texture& pixelBuffer, st
     perlin.SetFractalType(FastNoiseLite::FractalType_FBm);
 
     perlin.SetFrequency(param::fNoiseFreq);      
-    perlin.SetFractalOctaves(param::NoiseOctaves);
+    perlin.SetFractalOctaves(param::iNoiseOctaves);
     perlin.SetFractalLacunarity(param::fNoiseLacunarity);
     perlin.SetFractalGain(param::fNoiseGain);
 
-    std::vector<float> noise(param::WIDTH * param::HEIGHT);
+    std::vector<float> noise(param::iWIDTH * param::iHEIGHT);
 
-    view.setCenter({ param::WIDTH / 2, param::HEIGHT / 2 });
+    view.setCenter({ param::iWIDTH / 2, param::iHEIGHT / 2 });
     int idx = 0;
 
-    for (size_t y = 0; y < param::NoiseSize; y++)
+    for (size_t y = 0; y < param::iNoiseSize; y++)
     {
-        for (size_t x = 0; x < param::NoiseSize; x++)
+        for (size_t x = 0; x < param::iNoiseSize; x++)
         {
             noise[idx] = (perlin.GetNoise((float)x, (float)y) + 1.f) / 2.f;
             int pIdx = idx * 4;
@@ -211,21 +216,21 @@ sf::Sprite GeneratePerlinNoiseMap(sf::View& view, sf::Texture& noiseBuffer, std:
 
     // Modify Noise parameters                           
     perlin.SetFrequency(param::fNoiseFreq);
-    perlin.SetFractalOctaves(param::NoiseOctaves);
+    perlin.SetFractalOctaves(param::iNoiseOctaves);
     perlin.SetFractalLacunarity(param::fNoiseLacunarity);
     perlin.SetFractalGain(param::fNoiseGain);
 
     // Allocate arrays for noise map and texture buffer
-    std::vector<float> noise(param::NoiseSize * param::NoiseSize);
-    sf::Vector2u size{ (unsigned int)param::NoiseSize, (unsigned int)param::NoiseSize };
+    std::vector<float> noise(param::iNoiseSize * param::iNoiseSize);
+    sf::Vector2u size{ (unsigned int)param::iNoiseSize, (unsigned int)param::iNoiseSize };
     noiseBuffer.resize(size);
-    pixels.resize(param::NoiseSize * param::NoiseSize * 4);
+    pixels.resize(param::iNoiseSize * param::iNoiseSize * 4);
 
     // Get noise value for each noise tile and add them to texture array
     int idx = 0;
-    for (size_t y = 0; y < param::NoiseSize; y++)
+    for (size_t y = 0; y < param::iNoiseSize; y++)
     {
-        for (size_t x = 0; x < param::NoiseSize; x++)
+        for (size_t x = 0; x < param::iNoiseSize; x++)
         {
             noise[idx] = (perlin.GetNoise((float)x, (float)y) + 1.f) / 2.f;
             int pIdx = idx * 4;
@@ -243,7 +248,7 @@ sf::Sprite GeneratePerlinNoiseMap(sf::View& view, sf::Texture& noiseBuffer, std:
 
     // Update texture to match view size and position
     const sf::Vector2f& viewSize = view.getSize();
-    sf::Vector2f scale(viewSize.x / param::NoiseSize, viewSize.y / param::NoiseSize);
+    sf::Vector2f scale(viewSize.x / param::iNoiseSize, viewSize.y / param::iNoiseSize);
     noiseSprite.scale(scale);
     noiseSprite.setPosition(view.getCenter() - viewSize / 2.f);
 
@@ -254,7 +259,7 @@ void ShowPerlinNoiseWindow(sf::Sprite& pixelSprite, sf::View& view, sf::Texture&
     ImGui::Begin("Noise Values");
     bool valuesChanged = false;
 
-    valuesChanged |= ImGui::InputInt("Octaves", &param::NoiseOctaves);
+    valuesChanged |= ImGui::InputInt("Octaves", &param::iNoiseOctaves);
     valuesChanged |= ImGui::InputFloat("Frequency", &param::fNoiseFreq, 0.01, 0.05, "%.3f");
     valuesChanged |= ImGui::InputFloat("Lacunarity", &param::fNoiseLacunarity, 0.05, 0.3, "%.2f");
     valuesChanged |= ImGui::InputFloat("Gain", &param::fNoiseGain, 0.05, 0.3, "%.2f");
@@ -273,21 +278,44 @@ void ShowPerlinNoiseWindow(sf::Sprite& pixelSprite, sf::View& view, sf::Texture&
 enum CollisionCategories
 {
     C_WALL = 0b0001,
-    C_CIRCLE = 0b0010,
+    C_VEHICLE = 0b0010,
 };
 
-b2ChainId CreateChainBody(b2BodyId body, int32_t pointCount, std::vector<b2Vec2>& points)
+b2ChainId UpdateChainBody(b2BodyId body, int32_t pointCount, std::vector<b2Vec2>& points)
 {
 
     b2ChainDef chain = b2DefaultChainDef();
     chain.count = pointCount;
     chain.points = points.data();
     chain.filter.categoryBits = C_WALL;
-    chain.filter.maskBits = C_CIRCLE;
+    chain.filter.maskBits = C_VEHICLE;
     chain.isLoop = true;
 
     return b2CreateChain(body, &chain);
 }
+
+struct Wall
+{
+    std::vector<b2Vec2> physicsVertices{ 0 };
+    sf::VertexArray displayVertices = sf::VertexArray{ sf::PrimitiveType::LineStrip, 0 };
+
+    b2BodyId bodyId;
+    b2ChainId chainId;
+
+    Wall(size_t vertexCount)
+    {
+        physicsVertices.resize(vertexCount);
+        displayVertices.resize(vertexCount + 1);
+    }
+
+    void CreateBody(b2WorldId world)
+    {
+        b2BodyDef bodyDef1 = b2DefaultBodyDef();
+        bodyDef1.type = b2_staticBody;
+        bodyId = b2CreateBody(world, &bodyDef1);
+        chainId = UpdateChainBody(bodyId, physicsVertices.size(), physicsVertices);
+    }
+};
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -303,7 +331,7 @@ void GeneratePerlinNoiseLoop(sf::VertexArray& vertices, size_t vertexCount)
 
     // Modify Noise parameters                            
     perlin.SetFrequency(param::fNoiseFreq);     
-    perlin.SetFractalOctaves(param::NoiseOctaves); 
+    perlin.SetFractalOctaves(param::iNoiseOctaves); 
     perlin.SetFractalLacunarity(param::fNoiseLacunarity); 
     perlin.SetFractalGain(param::fNoiseGain);
 
@@ -312,7 +340,7 @@ void GeneratePerlinNoiseLoop(sf::VertexArray& vertices, size_t vertexCount)
     for (size_t a = 0; a < vertexCount; a++)
     {
         // Angle determined here to avoid float issues when looping with a float
-        float angle = (static_cast<float>(a) / param::VertexMultiplier);
+        float angle = (static_cast<float>(a) / param::iVertexMultiplier);
 
         // x and y of circle for noise values
         float xOff = (cos(angle) + 1) * param::fNoiseRadialMultiplier;
@@ -335,21 +363,21 @@ void ShowPerlinNoiseLoopWindow(sf::VertexArray& vertices, size_t vertexCount)
     ImGui::Begin("Loop Values");
     bool valuesChanged = false;
 
-    valuesChanged |= ImGui::InputInt("Octaves", &param::NoiseOctaves, 1);
+    valuesChanged |= ImGui::InputInt("Octaves", &param::iNoiseOctaves, 1);
     valuesChanged |= ImGui::DragFloat("Frequency", &param::fNoiseFreq, 0.005f);
     valuesChanged |= ImGui::DragFloat("Lacunarity", &param::fNoiseLacunarity, 0.05f);
     valuesChanged |= ImGui::DragFloat("Gain", &param::fNoiseGain, 0.05f);
 
     ImGui::TextUnformatted("Path Multipliers");
 
-    valuesChanged |= ImGui::DragInt("Vertex", &param::VertexMultiplier, 1);
+    valuesChanged |= ImGui::DragInt("Vertex", &param::iVertexMultiplier, 1);
     valuesChanged |= ImGui::DragFloat("Offset", &param::fNoiseRadialMultiplier, 1);
 
     ImGui::End();
 
     if (valuesChanged)
     {
-        vertexCount = TWO_PI * param::VertexMultiplier;
+        vertexCount = TWO_PI * param::iVertexMultiplier;
         vertices.resize(vertexCount + 1);
         GeneratePerlinNoiseLoop(vertices, vertexCount);
     }
@@ -365,7 +393,7 @@ void GenerateSimplexNoisePath(int seed, size_t vertexCount, sf::VertexArray& dis
 
     // Modify Noise parameters                              // Ideal values for simple loop
     perlin.SetFrequency(param::fNoiseFreq);                 // 0.01
-    perlin.SetFractalOctaves(param::NoiseOctaves);          // 1
+    perlin.SetFractalOctaves(param::iNoiseOctaves);          // 1
     perlin.SetFractalLacunarity(param::fNoiseLacunarity);   // 2
     perlin.SetFractalGain(param::fNoiseGain);               // 0.5
 
@@ -374,7 +402,7 @@ void GenerateSimplexNoisePath(int seed, size_t vertexCount, sf::VertexArray& dis
     for (size_t a = 0; a < vertexCount; a++)
     {
         // Angle determined here to avoid float issues when looping with a float
-        float angle = (static_cast<float>(a) / param::VertexMultiplier);    // 20
+        float angle = (static_cast<float>(a) / param::iVertexMultiplier);    // 20
 
         // x and y of circle for noise values
         float xOff = (cos(angle) + 1) * param::fNoiseRadialMultiplier;      // 65
@@ -402,13 +430,12 @@ void GenerateSimplexNoisePath(int seed, size_t vertexCount, sf::VertexArray& dis
     std::reverse(chainVerticesOuter.begin(), chainVerticesOuter.end());
 }
 
-void ShowSimplexNoisePathWindow(int seed, size_t vertexCount, sf::VertexArray& displayVerticesInner, sf::VertexArray& displayVerticesOuter, 
-    std::vector<b2Vec2>& chainVerticesInner, std::vector<b2Vec2>& chainVerticesOuter, b2ChainId* chainOuter, b2BodyId bodyOuter)
+void ShowSimplexNoisePathWindow(int seed, size_t vertexCount, Wall& wallInner, Wall& wallOuter)
 {
-    ImGui::Begin("Loop Values");
+    ImGui::Begin("Noise Path Values");
     bool valuesChanged = false;
 
-    valuesChanged |= ImGui::InputInt("Octaves", &param::NoiseOctaves, 1);
+    valuesChanged |= ImGui::InputInt("Octaves", &param::iNoiseOctaves, 1);
     valuesChanged |= ImGui::DragFloat("Frequency", &param::fNoiseFreq, 0.005f);
     valuesChanged |= ImGui::DragFloat("Lacunarity", &param::fNoiseLacunarity, 0.05f);
     valuesChanged |= ImGui::DragFloat("Gain", &param::fNoiseGain, 0.05f);
@@ -418,10 +445,10 @@ void ShowSimplexNoisePathWindow(int seed, size_t vertexCount, sf::VertexArray& d
     ImGui::TextUnformatted("Path");
 
     // Clamp vertices to be non negative, avoid vector underflow
-    int clampVertexMultiplier = param::VertexMultiplier;
+    int clampVertexMultiplier = param::iVertexMultiplier;
     valuesChanged |= ImGui::DragInt("Vertices", &clampVertexMultiplier, 1);
     if (valuesChanged && clampVertexMultiplier > 0)
-        param::VertexMultiplier = clampVertexMultiplier;
+        param::iVertexMultiplier = clampVertexMultiplier;
 
     valuesChanged |= ImGui::DragFloat("Radius Minimum", &param::fInnerRadiusMin, 1.f);
     valuesChanged |= ImGui::DragFloat("Radius Scalar", &param::fInnerRadiusScalar, 1.f);
@@ -431,25 +458,122 @@ void ShowSimplexNoisePathWindow(int seed, size_t vertexCount, sf::VertexArray& d
 
     if (valuesChanged)
     {
-        vertexCount = TWO_PI * param::VertexMultiplier;
-        displayVerticesInner.resize(vertexCount + 1);
-        displayVerticesOuter.resize(vertexCount + 1);
-        chainVerticesInner.resize(vertexCount);
-        chainVerticesOuter.resize(vertexCount);
-        GenerateSimplexNoisePath(seed, vertexCount, displayVerticesInner, displayVerticesOuter, chainVerticesInner, chainVerticesOuter);
+        vertexCount = TWO_PI * param::iVertexMultiplier;
+        wallInner.displayVertices.resize(vertexCount + 1);
+        wallOuter.displayVertices.resize(vertexCount + 1);
+        wallInner.physicsVertices.resize(vertexCount);
+        wallOuter.physicsVertices.resize(vertexCount);
+        GenerateSimplexNoisePath(seed, vertexCount, wallInner.displayVertices, wallOuter.displayVertices, wallInner.physicsVertices, wallOuter.physicsVertices);
         
-        b2DestroyChain(*chainOuter);
-        *chainOuter = CreateChainBody(bodyOuter, vertexCount, chainVerticesOuter);
+        b2DestroyChain(wallOuter.chainId);
+        wallOuter.chainId = UpdateChainBody(wallOuter.bodyId, vertexCount, wallOuter.physicsVertices);
     }
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Vehicle
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+b2BodyId CreateVehicle(b2WorldId world, float halfWidth, float halfHeight)
+{
+    // Define physics parameters
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.type = b2_dynamicBody;
+    bodyDef.position = { -271.f / param::fBOX2D_SCALE, 0.f };
+    bodyDef.linearVelocity = { 0.f, 0.f };
+    bodyDef.linearDamping = 0.9f;
+    bodyDef.rotation = b2MakeRot(-3.1415f / 2.f);
+    b2BodyId vehicleBody = b2CreateBody(world, &bodyDef);
+
+    // Make body shape
+    b2Polygon box = b2MakeBox(halfWidth, halfHeight);
+
+    // Define collider
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.filter.categoryBits = C_VEHICLE;
+    shapeDef.filter.maskBits = C_WALL;
+    shapeDef.enableContactEvents = true;
+
+    b2CreatePolygonShape(vehicleBody, &shapeDef, &box);
+
+    return vehicleBody;
+}
+
+
+void VehicleSense(b2WorldId world, b2BodyId vehicleBody, sf::VertexArray& outDrawableRays, std::vector<b2RayResult>& outResults)
+{
+    // Body parameters
+    const b2Vec2& origin = b2Body_GetPosition(vehicleBody);
+    const b2Rot& rotation = b2Body_GetRotation(vehicleBody);
+    float rotationAsRadians = b2Rot_GetAngle(rotation);
+
+    // Ray parameters
+    float rayLengthMeters = 3.f;
+    float angleStep = param::fFieldOfView / (outResults.size() - 1);
+    // beginning of field of view is half FOV to left of rotation
+    float angleStart = rotationAsRadians - param::fFieldOfView / 2.f; 
+    b2QueryFilter rayFilter = { C_VEHICLE, C_WALL };
+    b2Vec2 translation = { 0.f, 0.f }; // Initialize translation
+
+    // Shoot rays from vehicle
+    for (size_t i = 0; i < outResults.size(); i++)
+    {
+        // Box2d rot for cos and sin parts
+        b2Rot rayRot = b2MakeRot(angleStart + angleStep * i);
+
+        // Translation vector of ray
+        translation = { rayRot.c * rayLengthMeters, rayRot.s * rayLengthMeters };
+
+        // Cast and draw
+        outResults[i] = b2World_CastRayClosest(world, origin, translation, rayFilter);
+        outDrawableRays[i*2] = sf::Vertex{ { origin.x * param::fBOX2D_SCALE, origin.y * param::fBOX2D_SCALE }, sf::Color::Yellow };
+        outDrawableRays[i*2+1] = sf::Vertex{ { (origin.x + translation.x) * param::fBOX2D_SCALE, (origin.y + translation.y) * param::fBOX2D_SCALE }, sf::Color::Yellow };
+    }
+}
+
+void DrawVehicle(sf::RenderWindow& window, b2BodyId vehicleBody, float halfWidth, float halfHeight)
+{
+    const b2Vec2& position = b2Body_GetPosition(vehicleBody);
+    const b2Rot& rotation = b2Body_GetRotation(vehicleBody);
+
+    // Display vehicle
+    sf::RectangleShape vehicle({ halfWidth * 2.f * param::fBOX2D_SCALE, halfHeight * 2.f * param::fBOX2D_SCALE });
+    vehicle.setOrigin({ halfWidth * param::fBOX2D_SCALE, halfHeight * param::fBOX2D_SCALE });
+    vehicle.setFillColor(sf::Color::Transparent);
+    vehicle.setOutlineColor(sf::Color::White);
+    vehicle.setOutlineThickness(1.f);
+    vehicle.setPosition({ position.x * param::fBOX2D_SCALE, position.y * param::fBOX2D_SCALE });
+    vehicle.setRotation(sf::radians(b2Rot_GetAngle(rotation)));
+    window.draw(vehicle);
+
+    // display rotation
+    float radius = 25.f;
+    sf::VertexArray rotationLine(sf::PrimitiveType::Lines, 2);
+    b2Vec2 pos = b2Body_GetPosition(vehicleBody);
+    float screenX = pos.x * param::fBOX2D_SCALE;
+    float screenY = pos.y * param::fBOX2D_SCALE;
+    rotationLine[0] = sf::Vertex{ { screenX, screenY } };
+    rotationLine[1] = sf::Vertex{ { rotation.c * radius + screenX, rotation.s * radius + screenY } };
+    window.draw(rotationLine);
+}
+
+void ShowVehicleStatsWindow(b2BodyId vehicleBody)
+{
+    const b2Vec2& bodyPos = b2Body_GetPosition(vehicleBody);
+    ImGui::Begin("Physics Debug");
+    ImGui::Text("Circle Position: (%.2f, %.2f)", bodyPos.x * param::fBOX2D_SCALE, bodyPos.y * param::fBOX2D_SCALE);
+    ImGui::Text("Circle Velocity: (%.2f, %.2f)",
+        b2Body_GetLinearVelocity(vehicleBody).x,
+        b2Body_GetLinearVelocity(vehicleBody).y);
+    ImGui::End();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int main() 
+int main()
 {
-    SimpleWindow m_window{ "Neural Network Builder", {param::WIDTH, param::HEIGHT} };
+    SimpleWindow m_window{ "Neural Network Builder", {param::iWIDTH, param::iHEIGHT} };
     if (!ImGui::SFML::Init(m_window.get()))
         return -1;
 
@@ -465,8 +589,8 @@ int main()
     //std::mt19937 gen(rd());
     //std::uniform_real_distribution<float> dist{ 0.f, 1.f };
 
-    //std::vector<uint8_t> pixels(param::WIDTH * param::HEIGHT * 4);
-    //sf::Texture pixelBuffer{ sf::Vector2u(param::WIDTH, param::HEIGHT) };
+    //std::vector<uint8_t> pixels(param::iWIDTH * param::iHEIGHT * 4);
+    //sf::Texture pixelBuffer{ sf::Vector2u(param::iWIDTH, param::iHEIGHT) };
     //sf::Sprite pixelSprite = GeneratePerlinNoiseMap(view, pixelBuffer, pixels);
 
     //Network nn;
@@ -478,52 +602,26 @@ int main()
     /*!
      *  Code for race track arena and collisions
      */
-    size_t vertexCount = TWO_PI * param::VertexMultiplier;
+    size_t vertexCount = TWO_PI * param::iVertexMultiplier;
 
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = { 0.f, 0.f };
     b2WorldId world = b2CreateWorld(&worldDef);
-  
-    std::vector<b2Vec2> chainVerticesInner(vertexCount);
-    std::vector<b2Vec2> chainVerticesOuter(vertexCount);
 
-    //sf::VertexArray vertices{ sf::PrimitiveType::LineStrip, vertexCount + 1 };
-    sf::VertexArray displayVerticesInner{ sf::PrimitiveType::LineStrip, vertexCount + 1 };
-    sf::VertexArray displayVerticesOuter{ sf::PrimitiveType::LineStrip, vertexCount + 1 };
-    GenerateSimplexNoisePath(param::SEED, vertexCount, displayVerticesInner, displayVerticesOuter, chainVerticesInner, chainVerticesOuter);
+    Wall wallInner(vertexCount);
+    Wall wallOuter(vertexCount);
 
-    // Create physics bodies
-    // Inner body
-    b2BodyDef bodyDef1 = b2DefaultBodyDef();
-    bodyDef1.type = b2_staticBody;
-    b2BodyId bodyInner = b2CreateBody(world, &bodyDef1);
-    b2ChainId chainInner = CreateChainBody(bodyInner, vertexCount, chainVerticesInner);
+    GenerateSimplexNoisePath(param::iSEED, vertexCount, wallInner.displayVertices, wallOuter.displayVertices, wallInner.physicsVertices, wallOuter.physicsVertices);
 
-    // Outer body
-    b2BodyDef bodyDef2 = b2DefaultBodyDef();
-    bodyDef2.type = b2_staticBody;
-    b2BodyId bodyOuter = b2CreateBody(world, &bodyDef2);
-    b2ChainId chainOuter = CreateChainBody(bodyOuter, vertexCount, chainVerticesOuter);
+    wallInner.CreateBody(world);
+    wallOuter.CreateBody(world);
 
-    // Test collider
-    b2BodyDef dynamicBody = b2DefaultBodyDef();
-    dynamicBody.type = b2_dynamicBody;
-    dynamicBody.position = { -param::WIDTH / 2 / param::fBOX2D_SCALE, 0.f};
-    dynamicBody.linearVelocity = { 3.f, 0.f };
-    b2BodyId circleBody = b2CreateBody(world, &dynamicBody);
-    
-    b2Circle circle{};
-    circle.radius = 20.f / param::fBOX2D_SCALE;
-    circle.center = b2Vec2(0.f, 0.f);
+    float halfWidth = 0.5f;
+    float halfHeight = 0.25f;
+    b2BodyId vehicleBody = CreateVehicle(world, halfWidth, halfHeight);
 
-    b2ShapeDef circleDef = b2DefaultShapeDef();
-    circleDef.filter.categoryBits = C_CIRCLE;
-    circleDef.filter.maskBits = C_WALL;
-    circleDef.enableContactEvents = true;
-    b2CreateCircleShape(circleBody, &circleDef, &circle);
-
-    sf::CircleShape displayCircle{ circle.radius * param::fBOX2D_SCALE };
-    displayCircle.setOrigin({ circle.radius * param::fBOX2D_SCALE, circle.radius * param::fBOX2D_SCALE });
+    sf::VertexArray rays = sf::VertexArray{ sf::PrimitiveType::Lines, param::iRayCount * 2 };
+    std::vector<b2RayResult> rayResults(param::iRayCount);
 
     int framecounter = 0;
     while (m_window.isOpen())
@@ -536,32 +634,24 @@ int main()
         m_deltaTime = m_clock.restart();
         ImGui::SFML::Update(m_window.get(), m_deltaTime);
         b2World_Step(world, m_deltaTime.asSeconds(), 4);
+        VehicleSense(world, vehicleBody, rays, rayResults);
 
         // Debug windows
         ImGui::ShowMetricsWindow();
         //ShowNetworkVariablesWindow();
         //ShowPerlinNoiseWindow(pixelSprite, view, pixelBuffer, pixels);
         //ShowPerlinNoiseLoopWindow(vertices, vertexCount);
-        ShowSimplexNoisePathWindow(param::SEED, vertexCount, displayVerticesInner, displayVerticesOuter,
-            chainVerticesInner, chainVerticesOuter, &chainOuter, bodyOuter);
-
-        const b2Vec2& circlePos = b2Body_GetPosition(circleBody);
-        displayCircle.setPosition({ circlePos.x * param::fBOX2D_SCALE, circlePos.y * param::fBOX2D_SCALE });
-
-        ImGui::Begin("Physics Debug");
-        ImGui::Text("Circle Position: (%.2f, %.2f)", circlePos.x * param::fBOX2D_SCALE, circlePos.y * param::fBOX2D_SCALE);
-        ImGui::Text("Circle Velocity: (%.2f, %.2f)",
-            b2Body_GetLinearVelocity(circleBody).x,
-            b2Body_GetLinearVelocity(circleBody).y);
-        ImGui::End();
+        ShowSimplexNoisePathWindow(param::iSEED, vertexCount, wallInner, wallOuter);
+        ShowVehicleStatsWindow(vehicleBody);
         
         m_window.ProcessEvents(view); // Also processes ImGui events
 
         // Display
         m_window.BeginDraw();
-        m_window.Draw(displayVerticesInner);
-        m_window.Draw(displayVerticesOuter);
-        m_window.Draw(displayCircle);
+        m_window.Draw(wallInner.displayVertices);
+        m_window.Draw(wallOuter.displayVertices);
+        m_window.Draw(rays);
+        DrawVehicle(m_window.get(), vehicleBody, halfWidth, halfHeight);
 
         //m_window.Draw(pixelSprite);
         //DrawNetwork(nn, m_window, view.getCenter() / 2.f, 20.f);
