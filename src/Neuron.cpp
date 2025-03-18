@@ -9,7 +9,10 @@ void Neuron::InitRandomWeightsAndBias(int neuronCount,
     {
         m_weights.emplace_back(dist(gen));
     }
-    m_bias = dist(gen);
+    // Biases should be initialized to 0 to avoid forcing the model to
+    // overcome initial bias offsets.
+    //m_bias = dist(gen);
+    m_bias = 0.f;
 }
 
 const std::vector<float>& Neuron::getWeights() const { return m_weights; }
