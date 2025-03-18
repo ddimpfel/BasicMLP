@@ -11,6 +11,7 @@
 namespace nnMath
 {
 
+// Element-wise multiplication
 static std::vector<float> mult(std::vector<float> lhs, std::vector<float> rhs) 
 {
     _ASSERT(lhs.size() == rhs.size());
@@ -24,6 +25,7 @@ static std::vector<float> mult(std::vector<float> lhs, std::vector<float> rhs)
     return vecOut;
 }
 
+// Dot product
 static float dot(std::vector<float> lhs, std::vector<float> rhs)
 {
     _ASSERT(lhs.size() == rhs.size());
@@ -37,6 +39,7 @@ static float dot(std::vector<float> lhs, std::vector<float> rhs)
     return fProduct;
 }
 
+// Outer product returns matrix with u rows by v columns
 static std::vector<std::vector<float>> outer(std::vector<float> u, std::vector<float> v)
 {
     std::vector<std::vector<float>> matOut(u.size(), std::vector<float>(v.size()));
@@ -51,6 +54,7 @@ static std::vector<std::vector<float>> outer(std::vector<float> u, std::vector<f
     return matOut;
 }
 
+// Sum a single vector
 static float sum(const std::vector<float>& vec)
 {
     float sum = 0;
@@ -61,22 +65,23 @@ static float sum(const std::vector<float>& vec)
     return sum;
 }
 
-static void printMat(const std::vector<std::vector<float>>& weightGradients, std::string name)
+// Print a NxM matrix to console and give it some name as a label
+static void printMat(const std::vector<std::vector<float>>& matrix, std::string name)
 {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(8);
 
     oss << name << " [";
-    for (size_t i = 0; i < weightGradients.size(); ++i) {
+    for (size_t i = 0; i < matrix.size(); ++i) {
         oss << "[";
-        for (size_t j = 0; j < weightGradients[i].size(); ++j) {
-            oss << weightGradients[i][j];
-            if (j < weightGradients[i].size() - 1) {
+        for (size_t j = 0; j < matrix[i].size(); ++j) {
+            oss << matrix[i][j];
+            if (j < matrix[i].size() - 1) {
                 oss << " ";
             }
         }
         oss << "]";
-        if (i < weightGradients.size() - 1) {
+        if (i < matrix.size() - 1) {
             oss << " ";
         }
     }
@@ -85,15 +90,16 @@ static void printMat(const std::vector<std::vector<float>>& weightGradients, std
     std::cout << oss.str() << std::endl;
 }
 
-static void printVec(const std::vector<float>& delta, std::string name)
+// Print a vector to console and give it some name as a label
+static void printVec(const std::vector<float>& vector, std::string name)
 {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(8);
 
     oss << name << " [";
-    for (size_t i = 0; i < delta.size(); ++i) {
-        oss << delta[i];
-        if (i < delta.size() - 1) {
+    for (size_t i = 0; i < vector.size(); ++i) {
+        oss << vector[i];
+        if (i < vector.size() - 1) {
             oss << " ";
         }
     }
