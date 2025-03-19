@@ -642,16 +642,16 @@ int main()
     sf::VertexArray rays = sf::VertexArray{ sf::PrimitiveType::Lines, param::iRayCount * 2 };
     std::vector<b2RayResult> rayResults(param::iRayCount);
 
-    // Testing spawning 100 agents and giving them a random velocity
-    float randomSeed = dist(gen); // to avoid all agents starting with same seed
+    /*!
+     *   Create many randomized agents to interact with the environment
+     */
+    int agentCount = 5;
+    float randomSeed = dist(gen) * 100000; // to avoid all agents starting with same seed
     float halfWidth = 0.5f;
     float halfHeight = 0.25f;
-    std::vector<b2BodyId> vehicles(100);
-    for (size_t i = 0; i < 100; i++)
+    std::vector<b2BodyId> vehicles(agentCount);
+    for (size_t i = 0; i < agentCount; i++)
     {
-        /*!
-         *   Create a randomized agent to interact with the environment
-         */
         b2BodyId vehicleBody = CreateVehicle(world, halfWidth, halfHeight);
 
         gen.seed(randomSeed + i);
@@ -732,8 +732,8 @@ int main()
         m_window.Draw(wallInner.displayVertices);
         m_window.Draw(wallOuter.displayVertices);
         m_window.Draw(rays);
-        // Testing running 100 agents
-        for (size_t i = 0; i < 100; i++)
+        // Testing running many agents
+        for (size_t i = 0; i < agentCount; i++)
         {
             DrawVehicle(m_window.get(), vehicles[i], halfWidth, halfHeight);
         }
