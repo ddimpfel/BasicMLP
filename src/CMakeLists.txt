@@ -7,6 +7,7 @@ set(MAIN_SOURCES
     Layer.cpp 
     Neuron.cpp
     Noise.cpp
+    Vehicle.cpp
 )
 
 # Build main executable linked to Network.cpp
