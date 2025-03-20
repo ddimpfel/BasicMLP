@@ -14,7 +14,7 @@
 constexpr float xGapMult = 5.f;
 constexpr float yGapMult = 3.f;
 constexpr float minThickness = 1.0f;
-constexpr float thicknessCoeff = 10.f;
+constexpr float thicknessCoeff = 3.f;
 
 // This adds more of a parallelogram than straight line, in that the ends
 // are vertcal and not perpendicular to the line direction.
