@@ -26,9 +26,17 @@ float fPathWidth = 75.f;
 
 // Box2d
 const float fBOX2D_SCALE = 50.f;
+enum CollisionCategories
+{
+    C_WALL = 0b0001,
+    C_VEHICLE = 0b0010,
+};
 
 // Senses
 size_t iRayCount = 3;
 float fFieldOfView = PI / 2.f;
+
+// Agent
+float collisionPenalizer = 0.1f;
 
 }

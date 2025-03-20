@@ -3,35 +3,41 @@
 #include <random>
 #include <iostream>
 #include <memory>
+#include <cstdint>
+
 #include <imgui.h>
 #include <imgui-SFML.h>
+
 #include <SFML/System/Clock.hpp>
 #include <SFML/System/Vector2.hpp>
 #include <SFML/System/Time.hpp>
 #include <SFML/Graphics.hpp>
-
-#include "SimpleWindow.hpp"
-#include "Network.hpp"
-#include "DrawNetwork.cpp"
-#include <SFML/Graphics/View.hpp>
-#include <FastNoiseLite.h>
-#include "Parameters.hpp"
-#include <cstdint>
 #include <SFML/Graphics/PrimitiveType.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/Vertex.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
+#include <SFML/Graphics/Color.hpp>
+#include <SFML/Graphics/RectangleShape.hpp>
+#include <SFML/Graphics/View.hpp>
+
+#include <FastNoiseLite.h>
+
 #include <box2d/types.h>
 #include <box2d/box2d.h>
 #include <box2d/collision.h>
 #include <box2d/id.h>
 #include <box2d/math_functions.h>
-#include <SFML/Graphics/Color.hpp>
-#include <SFML/Graphics/RectangleShape.hpp>
+
+#include "SimpleWindow.hpp"
+#include "Network.hpp"
+#include "DrawNetwork.cpp"
+#include "Parameters.hpp"
+#include "Vehicle.hpp"
 
 
-#define TWO_PI 2*3.14
+#define TWO_PI 2*3.14159265359f
+#define PI 3.14159265359f
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -481,6 +487,7 @@ b2BodyId CreateVehicle(b2WorldId world, float halfWidth, float halfHeight)
     bodyDef.position = { -271.f / param::fBOX2D_SCALE, 0.f };
     bodyDef.linearVelocity = { 0.f, 0.f };
     bodyDef.linearDamping = 0.9f;
+    bodyDef.angularDamping = 0.9f;
     bodyDef.rotation = b2MakeRot(-3.1415f / 2.f);
     b2BodyId vehicleBody = b2CreateBody(world, &bodyDef);
 
@@ -576,15 +583,56 @@ void DrawVehicle(sf::RenderWindow& window, b2BodyId vehicleBody, float halfWidth
     window.draw(rotationLine);
 }
 
-void ShowVehicleStatsWindow(b2BodyId vehicleBody)
+void ShowVehicleStatsWindow(Vehicle vehicle)
 {
-    const b2Vec2& bodyPos = b2Body_GetPosition(vehicleBody);
-    ImGui::Begin("Physics Debug");
+    const b2Vec2& bodyPos = b2Body_GetPosition(vehicle.m_body);
+    ImGui::Begin("Vehicle Stats");
+    ImGui::Text("Score: (%.2f)", vehicle.GetScore());
     ImGui::Text("Circle Position: (%.2f, %.2f)", bodyPos.x * param::fBOX2D_SCALE, bodyPos.y * param::fBOX2D_SCALE);
     ImGui::Text("Circle Velocity: (%.2f, %.2f)",
-        b2Body_GetLinearVelocity(vehicleBody).x,
-        b2Body_GetLinearVelocity(vehicleBody).y);
+        b2Body_GetLinearVelocity(vehicle.m_body).x,
+        b2Body_GetLinearVelocity(vehicle.m_body).y);
     ImGui::End();
+}
+
+void CreateVehicles(std::vector<Vehicle>& vehicles, b2WorldId world, float halfWidth, float halfHeight, 
+    std::uniform_real_distribution<float>& dist, std::mt19937& gen)
+{
+    float randomSeed = dist(gen) * 100000;
+    for (size_t i = 0; i < vehicles.size(); i++)
+    {
+        // Randomize seed for each vehicle
+        gen.seed(randomSeed + i);
+
+        vehicles[i] = Vehicle();
+        vehicles[i].InitBody(world, halfWidth, halfWidth);
+
+        // inputs are
+        // {
+        //  pos.x, 
+        //  pos.y,
+        //  ray_left fraction,
+        //  ray_frwd fraction,
+        //  ray_rght fraction,
+        // }
+        // 
+        // ouputs are 
+        // {
+        //  vel.x, 
+        //  vel.y, 
+        //  throttle, 
+        //  rotation
+        // }
+        std::vector<int> architecture = { 5, 4, 3 };
+        vehicles[i].InitBrain(architecture, ActivationSigmoid, DerivativeActivationSigmoid, LossMSE, dist, gen);
+
+        vehicles[i].InitializeScoring();
+    }
+}
+
+bool SortByScore(const Vehicle& a, const Vehicle& b)
+{
+    return a.GetScore() > b.GetScore();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -622,7 +670,7 @@ int main()
 
 
     /*!
-     *  Code for race track arena and collisions
+     *  Code for race track arena and collisions, currently implementing neuro-evolution
      */
     size_t vertexCount = TWO_PI * param::iVertexMultiplier;
 
@@ -645,85 +693,85 @@ int main()
     /*!
      *   Create many randomized agents to interact with the environment
      */
-    int agentCount = 5;
-    float randomSeed = dist(gen) * 100000; // to avoid all agents starting with same seed
-    float halfWidth = 0.5f;
-    float halfHeight = 0.25f;
-    std::vector<b2BodyId> vehicles(agentCount);
-    for (size_t i = 0; i < agentCount; i++)
+    int agentCount = 50;
+    float halfWidth = 0.3f; // meters
+    float halfHeight = 0.15f; // meters
+    std::vector<Vehicle> vehicles(agentCount);
+    CreateVehicles(vehicles, world, halfWidth, halfHeight, dist, gen);
+
+    // Get arena bounds
+    float xMinArena = INFINITY, xMaxArena = -INFINITY;
+    float yMinArena = INFINITY, yMaxArena = -INFINITY;
+    for (auto& vertex : wallOuter.physicsVertices)
     {
-        b2BodyId vehicleBody = CreateVehicle(world, halfWidth, halfHeight);
-
-        gen.seed(randomSeed + i);
-        std::vector<int> architecture = { 2, 4, 2 };
-        Network vehicleBrain;
-        BuildNetwork(vehicleBrain, architecture, dist, gen);
-
-        // Determine inputs based on position initially
-        const b2Vec2& vehiclePosition = b2Body_GetPosition(vehicleBody);
-        std::vector<float> inputs = { vehiclePosition.x, vehiclePosition.y };
-
-        // Normalize inputs
-        float xMinArena = INFINITY, xMaxArena = -INFINITY;
-        float yMinArena = INFINITY, yMaxArena = -INFINITY;
-        for (auto& vertex : wallOuter.physicsVertices)
-        {
-            if (xMinArena > vertex.x)
-                xMinArena = vertex.x;
-            if (xMaxArena < vertex.x)
-                xMaxArena = vertex.x;
-            if (yMinArena > vertex.y)
-                yMinArena = vertex.y;
-            if (yMaxArena < vertex.y)
-                yMaxArena = vertex.y;
-        }
-        inputs[0] = (inputs[0] - xMinArena) / (xMaxArena - xMinArena);
-        inputs[1] = (inputs[1] - yMinArena) / (yMaxArena - yMinArena);
-
-        // Agent moves the vehicle
-        // Network outputs are normalized from [0, 1]
-        std::vector<float> outputs = vehicleBrain.Predict(inputs);
-
-        // Transform outputs to represent all possible acceleration vectors
-        //  ouputs in range from [-0.5 to 0.5)
-        if (outputs[0] < 0.5f)
-            outputs[0] *= -1.f;
-        else // outputs[0] >= 0.5f
-            outputs[0] -= 0.5f;
-
-        if (outputs[1] < 0.5f)
-            outputs[1] *= -1.f;
-        else // outputs[1] >= 0.5f
-            outputs[1] -= 0.5f;
-
-        // Move agent
-        b2Vec2 acceleration = { outputs[0], outputs[1] };
-        b2Vec2 newVelocity = b2Body_GetLinearVelocity(vehicleBody) + acceleration;
-        b2Body_SetLinearVelocity(vehicleBody, newVelocity);
-
-        vehicles[i] = vehicleBody;
+        if (xMinArena > vertex.x)
+            xMinArena = vertex.x;
+        if (xMaxArena < vertex.x)
+            xMaxArena = vertex.x;
+        if (yMinArena > vertex.y)
+            yMinArena = vertex.y;
+        if (yMaxArena < vertex.y)
+            yMaxArena = vertex.y;
     }
 
-    int framecounter = 0;
+    int frameCounter = 0;
     while (m_window.isOpen())
     {
-        // Train the network
-        //if (framecounter % 10 == 0)
-        //  nn.Fit(inputs, expected);
+        // Mutate vehicles and restart simulation
+        if (frameCounter % 25000 == 0)
+        {
+            std::cout << "Generation complete\n";
+        }
 
         // Update
         m_deltaTime = m_clock.restart();
         ImGui::SFML::Update(m_window.get(), m_deltaTime);
         b2World_Step(world, m_deltaTime.asSeconds(), 4);
-        //VehicleSense(world, vehicleBody, rays, rayResults);
+
+        // Handle vehicle-wall collisions (box2d)
+        b2ContactEvents collisions = b2World_GetContactEvents(world);
+        for (size_t i = 0; i < collisions.beginCount; i++)
+        {
+            const b2ContactBeginTouchEvent* beginEvent = collisions.beginEvents + i;
+            
+            // Get colliding bodies, one is the vehicle, one is the wall
+            // Shape A is the vehicle
+            if (b2Shape_GetFilter(beginEvent->shapeIdA).categoryBits == C_VEHICLE)
+            {
+                // Get vehicle
+                auto body = b2Shape_GetBody(beginEvent->shapeIdA);
+                Vehicle* vehicle = static_cast<Vehicle*>(b2Body_GetUserData(body));
+                vehicle->IncrementWallCollisions();
+            }
+            else // Shape B
+            {
+                // Get vehicle
+                auto body = b2Shape_GetBody(beginEvent->shapeIdB);
+                Vehicle* vehicle = static_cast<Vehicle*>(b2Body_GetUserData(body));
+                vehicle->IncrementWallCollisions();
+            }
+        }
+
+        // Agent-environment interaction
+        for (size_t i = 0; i < vehicles.size(); i++)
+        {
+            // Agent senses it's environment
+            std::vector<float>& inputs = vehicles[i].Sense(world, param::fFieldOfView, param::iRayCount, xMinArena, xMaxArena, yMinArena, yMaxArena);
+
+            // Agent acts on environment
+            vehicles[i].Act(inputs);
+
+            // Vehicle is scored based on interactions with environment
+            vehicles[i].UpdateScore(param::collisionPenalizer);
+        }
+
+        // Sort vehicles based on score
+        std::sort(vehicles.begin(), vehicles.end(), SortByScore);
 
         // Debug windows
         ImGui::ShowMetricsWindow();
-        //ShowNetworkVariablesWindow();
-        //ShowPerlinNoiseWindow(pixelSprite, view, pixelBuffer, pixels);
-        //ShowPerlinNoiseLoopWindow(vertices, vertexCount);
         ShowSimplexNoisePathWindow(param::iSEED, vertexCount, wallInner, wallOuter);
-        //ShowVehicleStatsWindow(vehicleBody);
+        ShowVehicleStatsWindow(vehicles[0]);
         
         m_window.ProcessEvents(view); // Also processes ImGui events
 
@@ -731,21 +779,19 @@ int main()
         m_window.BeginDraw();
         m_window.Draw(wallInner.displayVertices);
         m_window.Draw(wallOuter.displayVertices);
-        m_window.Draw(rays);
-        // Testing running many agents
-        for (size_t i = 0; i < agentCount; i++)
+        //m_window.Draw(rays);
+        for (size_t i = 0; i < vehicles.size(); i++)
         {
-            DrawVehicle(m_window.get(), vehicles[i], halfWidth, halfHeight);
+            DrawVehicle(m_window.get(), vehicles[i].m_body, halfWidth, halfHeight);
         }
-        //DrawVehicle(m_window.get(), vehicleBody, halfWidth, halfHeight);
 
         //m_window.Draw(pixelSprite);
-        //DrawNetwork(nn, m_window, view.getCenter() / 2.f, 20.f);
+        DrawNetwork(vehicles[0].m_brain, m_window, { view.getCenter().x - param::iWIDTH / 2 + 60.f, view.getCenter().y + param::iHEIGHT / 2 - 60.f }, 7.f);
 
         ImGui::SFML::Render(m_window.get());
         m_window.EndDraw();
 
-        framecounter++;
+        frameCounter++;
     }
 
     ImGui::SFML::Shutdown();
