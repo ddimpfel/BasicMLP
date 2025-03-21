@@ -1,5 +1,6 @@
 #pragma once
 #include <box2d/id.h>
+#include <box2d/math_functions.h>
 #include <Network.hpp>
 
 class Vehicle
@@ -11,7 +12,9 @@ public:
     void InitBody(
         b2WorldId world, 
         float halfWidth, 
-        float halfHeight
+        float halfHeight, 
+        float x, float y, 
+        float rotation
     );
 
     void InitBrain(
@@ -26,6 +29,12 @@ public:
     std::vector<float>& Sense(b2WorldId world, float fov, size_t rayCount, float xMin, float xMax, float yMin, float yMax);
 
     void Act(std::vector<float>& inputs);
+
+    void Evolve(Network betterBrain, float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen);
+
+    void ResetBody(float x, float y, float rotation);
+
+    void MutateBrain(float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen);
 
     void InitializeScoring();
 
@@ -43,6 +52,7 @@ private:
     std::vector<float> m_outputs;
 
     int m_wallCollisions;
+    b2Vec2 m_previousPosition;
     float m_previousAngle;
     float m_totalAngleTraversed;
     float m_score;

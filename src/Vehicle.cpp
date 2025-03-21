@@ -8,17 +8,18 @@ Vehicle::Vehicle() :
 
 Vehicle::~Vehicle() = default;
 
-void Vehicle::InitBody(b2WorldId world, float halfWidth, float halfHeight)
+void Vehicle::InitBody(b2WorldId world, float halfWidth, float halfHeight, float x, float y, float rotation)
 {
     // Define physics parameters
     b2BodyDef bodyDef = b2DefaultBodyDef();
     bodyDef.type = b2_dynamicBody;
     // FIXME 50.f = param::fBOX2D_SCALE but parameters.hpp linker error
-    bodyDef.position = { -271.f / 50.f, 0.f };
+    bodyDef.position = { x, y };
     bodyDef.linearVelocity = { 0.f, 0.f };
     bodyDef.linearDamping = 0.9f;
     bodyDef.angularDamping = 0.9f;
-    bodyDef.rotation = b2MakeRot(-3.1415f / 2.f);
+    bodyDef.rotation = b2MakeRot(rotation);
+    bodyDef.enableSleep = false;
     bodyDef.userData = this;
 
     m_body = b2CreateBody(world, &bodyDef);
@@ -38,12 +39,13 @@ void Vehicle::InitBody(b2WorldId world, float halfWidth, float halfHeight)
 }
 
 void Vehicle::InitBrain(
-    std::vector<int>& architecture, 
-    const std::function<float(float)>& ActivationSigmoid, 
+    std::vector<int>& architecture,
+    const std::function<float(float)>& ActivationSigmoid,
     const std::function<float(float)>& DerivativeActivationSigmoid,
     const std::function<float(size_t, float, float)>& LossMSE,
     std::uniform_real_distribution<float>& dist, std::mt19937& gen
-){
+)
+{
     m_brain = Network(architecture, ActivationSigmoid, DerivativeActivationSigmoid, LossMSE,
         std::make_unique<std::uniform_real_distribution<float>>(dist),
         std::make_unique<std::mt19937>(gen)
@@ -92,12 +94,22 @@ std::vector<float>& Vehicle::Sense(b2WorldId world, float fov, size_t rayCount, 
     m_inputs[2] = rayResults[0].fraction;
     m_inputs[3] = rayResults[1].fraction;
     m_inputs[4] = rayResults[2].fraction;
+    // Self velocity input
+    //const b2Vec2& velocity = b2Body_GetLinearVelocity(m_body);
+    //m_inputs[5] = velocity.x;
+    //m_inputs[6] = velocity.x;
+    // Change in position input
+    b2Vec2 currentPosition = b2Body_GetPosition(m_body);
+    float dx = currentPosition.x - m_previousPosition.x;
+    float dy = currentPosition.y - m_previousPosition.y;
+    m_previousPosition = currentPosition;
 
     return m_inputs;
 }
 
 void Vehicle::Act(std::vector<float>& inputs)
 {
+    // TODO set m_outputs to named variables
     // Agent moves the vehicle
     // Network outputs are normalized from [0, 1]
     m_outputs = m_brain.Predict(inputs);
@@ -121,12 +133,65 @@ void Vehicle::Act(std::vector<float>& inputs)
     // Move agent
     //b2Vec2 acceleration = { m_outputs[0] * m_outputs[2], m_outputs[1] * m_outputs[2] };
     //b2Vec2 velocity = b2Body_GetLinearVelocity(m_body) + acceleration;
-    b2Body_SetLinearVelocity(m_body, {m_outputs[0], m_outputs[1]});//velocity);
+    float acceleration = 3.f * m_outputs[2];
+    b2Body_SetLinearVelocity(m_body, { m_outputs[0] * acceleration, m_outputs[1] * acceleration });
+    //b2Body_ApplyForceToCenter(m_body, { m_outputs[0], m_outputs[1] }, true);
 
     // Rotate agent
     float maxRotationSpeed = 3.f;
-    float desiredRotation = (m_outputs[2] * 2.f - 1.f) * maxRotationSpeed; // mapped to [-max, max] rotation speed
+    float desiredRotation = (m_outputs[3] * 2.f - 1.f) * maxRotationSpeed; // mapped to [-max, max] rotation speed
     b2Body_SetAngularVelocity(m_body, desiredRotation);
+}
+
+void Vehicle::Evolve(Network betterBrain, float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen)
+{
+    // Copy better brain from more succesful vehicle
+    m_brain = betterBrain;
+    m_inputs.resize(m_brain.getArchitecture().front());
+    m_outputs.resize(m_brain.getArchitecture().back());
+
+    // Evolve offspring
+    MutateBrain(mutationFactor, dist, gen);
+}
+
+void Vehicle::ResetBody(float x, float y, float rotation)
+{
+    b2Body_SetTransform(m_body, { x, y }, b2MakeRot(rotation));
+    b2Body_SetLinearVelocity(m_body, { 0.f, 0.f });
+    b2Body_SetAngularVelocity(m_body, 0.f);
+    InitializeScoring();
+}
+
+void Vehicle::MutateBrain(float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen)
+{
+    float max = dist.max();
+    float min = dist.min();
+    
+    // random layer's biases altered
+    int randomLayer = (dist(gen) - min) / (max - min) * m_brain.getLayers().size() - 1;
+    std::vector<std::vector<float>> biases = m_brain.copyBiases();
+    for (auto& bias : biases[randomLayer])
+    {
+        // Normalize distribution generator to [-1, 1]
+        float randomBiasChange = ((dist(gen) - min) / (max - min) * 2.f) - 1.f;
+        bias += randomBiasChange * mutationFactor;
+    }
+
+    // random layer's weights altered
+    randomLayer = (dist(gen) - min) / (max - min) * m_brain.getLayers().size() - 1;
+    std::vector<std::vector<std::vector<float>>> weights = m_brain.copyWeights();
+    for (auto& neuron : weights[randomLayer])
+    {
+        for (auto& weight : neuron)
+        {
+            // Normalize distribution generator to [0, 1]
+            float randomWeightChange = ((dist(gen) - min) / (max - min));
+            weight += dist(gen) * mutationFactor;
+        }
+    }
+
+    // Update brain
+    m_brain.setWeightsAndBiases(weights, biases);
 }
 
 void Vehicle::InitializeScoring()
@@ -161,7 +226,7 @@ void Vehicle::UpdateScore(float collisionPenalizer)
     m_previousAngle = currentAngle;
 
     float collisionPenalties = m_wallCollisions * collisionPenalizer;
-    m_score = m_totalAngleTraversed - collisionPenalties;
+    m_score = m_totalAngleTraversed * 3.f - collisionPenalties; // FIXME 3.f angle traversed mutliplier
 }
 
 float Vehicle::GetScore() const { return m_score; }
