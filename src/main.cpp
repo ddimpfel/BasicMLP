@@ -583,20 +583,42 @@ void DrawVehicle(sf::RenderWindow& window, b2BodyId vehicleBody, float halfWidth
     window.draw(rotationLine);
 }
 
-void ShowVehicleStatsWindow(Vehicle vehicle)
+void ShowBestVehicleStatsWindow(Vehicle vehicle)
 {
     const b2Vec2& bodyPos = b2Body_GetPosition(vehicle.m_body);
-    ImGui::Begin("Vehicle Stats");
-    ImGui::Text("Score: (%.2f)", vehicle.GetScore());
-    ImGui::Text("Circle Position: (%.2f, %.2f)", bodyPos.x * param::fBOX2D_SCALE, bodyPos.y * param::fBOX2D_SCALE);
-    ImGui::Text("Circle Velocity: (%.2f, %.2f)",
+    ImGui::Begin("Last Gen Best Vehicle Stats");
+    ImGui::Text("Score: %.2f", vehicle.GetScore());
+    ImGui::Text("Vehicle Position: (%.2f, %.2f)", bodyPos.x * param::fBOX2D_SCALE, bodyPos.y * param::fBOX2D_SCALE);
+    ImGui::Text("Vehicle Velocity: (%.2f, %.2f)",
         b2Body_GetLinearVelocity(vehicle.m_body).x,
         b2Body_GetLinearVelocity(vehicle.m_body).y);
     ImGui::End();
 }
 
-void CreateVehicles(std::vector<Vehicle>& vehicles, b2WorldId world, float halfWidth, float halfHeight, 
-    std::uniform_real_distribution<float>& dist, std::mt19937& gen)
+void ShowVehicleScores(int generation, float bestScore, float lastGenBestScore, const std::vector<Vehicle>& vehicles)
+{
+    ImGui::Begin("Scores");
+    ImGui::Text("Best Score: %.2f", bestScore);
+    ImGui::NewLine();
+    ImGui::Text("Generation %d", generation+1);
+    ImGui::Text("Last Gen Best Score: %.2f", lastGenBestScore);
+    ImGui::NewLine();
+    for (size_t i = 0; i < vehicles.size(); i++)
+    {
+        ImGui::Text("Vehicle %d: %.2f", i+1, vehicles[i].GetScore());
+    }
+    ImGui::End();
+}
+
+void CreateVehicles(
+    std::vector<int>& architecture, 
+    std::vector<Vehicle>& vehicles, 
+    b2WorldId world, 
+    float halfWidth, 
+    float halfHeight,
+    std::uniform_real_distribution<float>& dist, 
+    std::mt19937& gen
+)
 {
     float randomSeed = dist(gen) * 100000;
     for (size_t i = 0; i < vehicles.size(); i++)
@@ -605,7 +627,7 @@ void CreateVehicles(std::vector<Vehicle>& vehicles, b2WorldId world, float halfW
         gen.seed(randomSeed + i);
 
         vehicles[i] = Vehicle();
-        vehicles[i].InitBody(world, halfWidth, halfWidth);
+        vehicles[i].InitBody(world, halfWidth, halfWidth, -271.f / 50.f, 0.f, -3.1415f / 2.f);
 
         // inputs are
         // {
@@ -623,7 +645,6 @@ void CreateVehicles(std::vector<Vehicle>& vehicles, b2WorldId world, float halfW
         //  throttle, 
         //  rotation
         // }
-        std::vector<int> architecture = { 5, 4, 3 };
         vehicles[i].InitBrain(architecture, ActivationSigmoid, DerivativeActivationSigmoid, LossMSE, dist, gen);
 
         vehicles[i].InitializeScoring();
@@ -693,11 +714,12 @@ int main()
     /*!
      *   Create many randomized agents to interact with the environment
      */
-    int agentCount = 50;
+    int agentCount = 100;
     float halfWidth = 0.3f; // meters
     float halfHeight = 0.15f; // meters
     std::vector<Vehicle> vehicles(agentCount);
-    CreateVehicles(vehicles, world, halfWidth, halfHeight, dist, gen);
+    std::vector<int> architecture = { 7, 5, 4 };
+    CreateVehicles(architecture, vehicles, world, halfWidth, halfHeight, dist, gen);
 
     // Get arena bounds
     float xMinArena = INFINITY, xMaxArena = -INFINITY;
@@ -715,12 +737,61 @@ int main()
     }
 
     int frameCounter = 0;
+    int generationFrameLimit = 10000;
+    float x = -265.f / 50.f;
+    float y = 0.f;
+    float rotation = -3.1415f / 2.f;
+    std::vector<float> normalizedScores(agentCount);
+    float bestScore = 0.f;
+    float lastGenBestScore = 0.f;
     while (m_window.isOpen())
     {
+
         // Mutate vehicles and restart simulation
-        if (frameCounter % 25000 == 0)
+        if (frameCounter % generationFrameLimit == 0)
         {
-            std::cout << "Generation complete\n";
+            // Sort vehicles based on score
+            std::sort(vehicles.begin(), vehicles.end(), SortByScore);
+
+            // Normalize scores to use as random selection threshold
+            // FIXME This causes them to gravitate to local minimums
+            float minScore = vehicles[agentCount-1].GetScore();
+            float maxScore = vehicles[0].GetScore();
+            lastGenBestScore = maxScore;
+            bestScore = maxScore > bestScore ? maxScore : bestScore;
+            for (size_t i = 0; i < normalizedScores.size(); i++)
+            {
+                normalizedScores[i] = (vehicles[i].GetScore() - minScore) / (maxScore - minScore);
+            }
+
+            // Natural selection
+            size_t vehiclesHalfSize = vehicles.size() / 2;
+            for (int i = 0; i < vehicles.size(); i++)
+            {
+                // Rebirth vehicle network for lower half of vehicles
+                bool shouldEvolve = dist(gen) + 1.f / 2.f > 1.f - normalizedScores[i];
+                if (shouldEvolve) {
+                    // Randomize seed for network brain
+                    float newSeed = dist(gen) + i;
+                    gen.seed(newSeed);
+
+                    // Evolving from top 25% vehicle
+                    int betterVehIdx = vehicles.size() * 0.25f * ((dist(gen) + 1.f) / 2.f);
+                    vehicles[i].Evolve(vehicles[betterVehIdx].m_brain, 0.5f, dist, gen);
+                    vehicles[i].MutateBrain(0.5f, dist, gen);
+                }
+
+                // Reset vehicles bodies
+                vehicles[i].ResetBody(x, y, rotation);
+
+                // Random mutation to prevent local minimum
+                if ((dist(gen) + 1.f) / 2.f < 0.5f)
+                {
+                    // Mutate two times randomly (FIXME work around for bad mutation function) 
+                    vehicles[i].MutateBrain(0.5f, dist, gen);
+                    //vehicles[i].MutateBrain(0.5f, dist, gen);
+                }
+            }
         }
 
         // Update
@@ -765,13 +836,11 @@ int main()
             vehicles[i].UpdateScore(param::collisionPenalizer);
         }
 
-        // Sort vehicles based on score
-        std::sort(vehicles.begin(), vehicles.end(), SortByScore);
-
         // Debug windows
         ImGui::ShowMetricsWindow();
         ShowSimplexNoisePathWindow(param::iSEED, vertexCount, wallInner, wallOuter);
-        ShowVehicleStatsWindow(vehicles[0]);
+        ShowBestVehicleStatsWindow(vehicles[0]);
+        ShowVehicleScores(frameCounter / generationFrameLimit, bestScore, lastGenBestScore, vehicles);
         
         m_window.ProcessEvents(view); // Also processes ImGui events
 
