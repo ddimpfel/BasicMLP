@@ -22,7 +22,7 @@ float fNoiseRadialMultiplier = 100;
 int iVertexMultiplier = 10;
 float fInnerRadiusMin = 212.f;
 float fInnerRadiusScalar = 31.f;
-float fPathWidth = 75.f;
+float fPathWidth = 100.f;
 
 // Box2d
 const float fBOX2D_SCALE = 50.f;
@@ -34,7 +34,7 @@ enum CollisionCategories
 
 // Senses
 size_t iRayCount = 3;
-float fFieldOfView = PI / 2.f;
+float fFieldOfView = PI;
 
 // Agent
 float collisionPenalizer = 0.1f;
