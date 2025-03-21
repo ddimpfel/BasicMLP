@@ -1,3 +1,18 @@
+/*!
+ *  @file Network.cpp
+ *  @author Dominick Dimpfel
+ *  @date 2025-03-20
+ *  @project Basic NN
+ *
+ *  Implements a feed forward neural network. Networks can be initialized randomly or by passing in layers,
+ *      weights, biases, and the functions used with the network.
+ *
+ *      Still to do:
+ *          Implementing back propagation to allow efficient handling of derivative activation functions rather
+ *          than user implementation.
+ *
+ *          Copying of the network to a json for file saving.
+ */
 #include "Network.hpp"
 
 #include <type_traits>
@@ -18,22 +33,22 @@ Network::Network() = default;
  *  @brief Create a FFNN using an initial network architecture. Learning rate defaults to 0.1f,
  *      use setLearningRate(float) after construction. Weights and biases are randomly generated.
  *
- *      @param [in] initialArchitecture - Represents the input, each layer,
- *      and the neurons in their layers.
- *
- *      **Ex: {{2, 2, 2}}** - network with 2 inputs, 1 hidden
+ *      **Ex initialArchitecture: {{2, 2, 2}}** - network with 2 inputs, 1 hidden
  *      layer with 2 nodes, and 2 output nodes
  *
- *      @param [in] ActivationFunction - Funciton passed to each layer
+ *      @param[in] initialArchitecture - Represents the input, each layer,
+ *      and the neurons in their layers.
+ *
+ *      @param[in] ActivationFunction - Funciton passed to each layer
  *      for neuron output activation.
  *      
- *      @param [in] LossFunction - Funciton used in back propagation to
+ *      @param[in] LossFunction - Funciton used in back propagation to
  *      determine loss from forward pass.
  *
  *      @note Either weights and biases **or** dist and gen are sent
  *
- *      @param [in] dist - uniform distribution with starting range
- *      @param [in] gen - mt19937 generator
+ *      @param[in] dist - uniform distribution with starting range
+ *      @param[in] gen - mt19937 generator
  */
 Network::Network(
     const std::vector<int>& initialArchitecture,
@@ -70,23 +85,23 @@ Network::Network(
  *  @brief Create a FFNN using an initial network architecture. Learning rate defaults to 0.1f,
  *      use setLearningRate(float) after construction. Weights and biases are preset and loaded in.
  *
- *      @param [in] initialArchitecture - Represents the input, each layer,
+ *      @param[in] initialArchitecture - Represents the input, each layer,
  *      and the neurons in their layers.
  *
  *      **Ex: {{2, 2, 2}}** - network with 2 inputs, 1 hidden
  *      layer with 2 nodes, and 2 output nodes
  *
- *      @param [in] ActivationFunction - Funciton passed to each layer
+ *      @param[in] ActivationFunction - Funciton passed to each layer
  *      for neuron output activation.
  *
- *      @param [in] LossFunction - Funciton used in back propagation to
+ *      @param[in] LossFunction - Funciton used in back propagation to
  *      determine loss from forward pass.
  *
  *      @note Either weights and biases **or** dist and gen are sent
  *
- *      @param [in] weights - Preset weights, ensure they are the same
+ *      @param[in] weights - Preset weights, ensure they are the same
  *      dimensions as initialLayers.
- *      @param [in] biases - Preset biases, ensure they are the same
+ *      @param[in] biases - Preset biases, ensure they are the same
  *      dimensions as num neurons for each layer.
  */
 Network::Network(
@@ -115,6 +130,15 @@ Network::Network(
     InitLayersPreset(ActivationFunction, weights, biases);
 }
 
+/*!
+ *  @brief Private function to set network layers when passing in weights and biases.
+ *
+ *      @param[in] ActivationFunction - activation function handed to layers for internal use
+ *
+ *      @param[in] optWeights - optional weights to initialize the model to
+ *      
+ *      @param[in] optBiases - optional biases to initialize the model to
+ */
 void Network::InitLayersPreset(
     const std::function<float(float)>& ActivationFunction, 
     const std::optional<std::vector<std::vector<std::vector<float>>>>& optWeights, 
@@ -157,6 +181,15 @@ void Network::InitLayersPreset(
     }
 }
 
+/*!
+ *  @brief Private function to set network layers when passing in weights and biases.
+ *
+ *      @param[in] ActivationFunction - activation function handed to layers for internal use
+ *
+ *      @param[in] dist - uniform random real distribution to initialize weights with
+ *
+ *      @param[in] gen - mt19937 random number generator to create uniform random numbers
+ */
 void Network::InitLayersRandom(
     const std::function<float(float)>& ActivationFunction,
     std::uniform_real_distribution<float> dist,
@@ -181,11 +214,26 @@ void Network::InitLayersRandom(
     }
 }
 
+/*!
+ *  @brief Predict outputs by passing inputs forward through the network.
+ *
+ *  @param[in] inputs - std::vector<float> inputs to predict on
+ *
+ *  @return std::vector<float> predicted outputs
+ */
 std::vector<float> Network::Predict(const std::vector<float>& inputs)
 {
     return ForwardPass(inputs);
 }
 
+/*!
+ *  @brief Fit (train) the model based on the expected outputs with the inputs predicted on.
+ *
+ *  @param[in] inputs - std::vector<float> inputs to predict on
+ *
+ *  @param[in] expectedOutputs - std::vector<float> expected outputs the model will adjust to match
+ *
+ */
 void Network::Fit(const std::vector<float>& inputs, const std::vector<float>& expectedOutputs)
 {
     ForwardPass(inputs);
@@ -194,8 +242,8 @@ void Network::Fit(const std::vector<float>& inputs, const std::vector<float>& ex
 
 /*!
  *   @brief Pass inputs forward through each layer
- *      
- *      @param [in] inputs: std::vector<float>
+ *
+ *      @param[in] inputs - std::vector<float> inputs to predict on
  *
  *      @return m_layerOutputs.back() is prediction
  *      @note This function is O(layers * neurons * inputs)
@@ -217,13 +265,14 @@ std::vector<float>& Network::ForwardPass(const std::vector<float>& inputs)
 /*!
  *  @brief Propagate the loss from output to input layer.
  *
+ *      @param[in] expectedOutputs: std::vector<float>
+ *      @param[in] learningRate: float
+ *
+ *      @note
  *      This is how the network learns. Loss is calculated at the outputs and utilized
  *      to update the weights. The partial derivative of the error with respect to the
- *      outputs of a layer gives the  error a layer  contributes to.  This updates the
- *      layers nodes and is also used to find the previous layers loss.
- *
- *      @param [in] expectedOutputs: correct outputs of network
- *      @param [in] learningRate: scalar effecting gradient descent velocity
+ *      outputs gives the error a layer contributes to.  This updates the layers nodes
+ *      and is also used to find the previous layers loss.
  */
 void Network::BackwardPropagation(const std::vector<float>& expectedOutputs)
 {
@@ -260,6 +309,17 @@ void Network::BackwardPropagation(const std::vector<float>& expectedOutputs)
     ApplyGradients(weightGradients, biasGradients);
 }
 
+/*!
+ *  @brief Internal function to calculate each layer's loss in back propagation step.
+ *
+ *  @param[in] currentLoss - The loss back propagated to the current layer
+ *
+ *  @param[in] currentLayer - The current layer
+ *
+ *  @param[in] numNeurons - The number of neurons in the current layer
+ *
+ *  @return loss left over for the next layer's back propagation
+ */
 std::vector<float> Network::CalculateLossPreviousLayer(std::vector<float> currentLoss, size_t currentLayer, size_t numNeurons)
 {
     // Loss from previous outputs
@@ -284,6 +344,13 @@ std::vector<float> Network::CalculateLossPreviousLayer(std::vector<float> curren
     return prevLoss;
 }
 
+/*!
+ *  @brief Internally apply the weights and biases gradients to each layer in the network in back propagation.
+ *
+ *  @param[in] weightGradients - each layer's weight gradients
+ *
+ *  @param[in] biasGradients - each layer's bias gradients
+ */
 void Network::ApplyGradients(
     std::vector<std::vector<std::vector<float>>>& weightGradients, 
     std::vector<std::vector<float>>& biasGradients)
@@ -310,6 +377,54 @@ const std::vector<int>& Network::getArchitecture() const { return m_architecture
 const std::vector<Layer>& Network::getLayers() const { return m_layers; }
 const std::vector<std::vector<float>>& Network::getLayerOutputs() const { return m_layerOutputs; }
 
+void Network::setLearningRate(float lr) { m_learningRate = lr; }
+
+/*!
+ *  @brief Set network weights
+ */
+void Network::setWeights(const std::vector<std::vector<std::vector<float>>>& weights)
+{
+    for (size_t l = 0; l < m_architecture.size(); l++)
+    {
+        for (size_t n = 0; n < m_architecture[l]; n++)
+        {
+            m_layers[l].neuron(n).setWeights(weights[l][n]);
+        }
+    }
+}
+
+/*!
+ *  @brief Set network biases
+ */
+void Network::setBiases(const std::vector<std::vector<float>>& biases)
+{
+    for (size_t l = 0; l < m_architecture.size(); l++)
+    {
+        for (size_t n = 0; n < m_architecture[l]; n++)
+        {
+            m_layers[l].neuron(n).setBias(biases[l][n]);
+        }
+    }
+}
+
+/*!
+ *  @brief Set network weights and biases
+ */
+void Network::setWeightsAndBiases(const std::vector<std::vector<std::vector<float>>>& weights, const std::vector<std::vector<float>>& biases)
+{
+    for (size_t l = 0; l < m_architecture.size(); l++)
+    {
+        for (size_t n = 0; n < m_architecture[l]; n++)
+        {
+            m_layers[l].neuron(n).setWeights(weights[l][n]);
+            m_layers[l].neuron(n).setBias(biases[l][n]);
+        }
+    }
+}
+
+/*!
+ *  @return hard copy of weights 3d vector
+ */
 std::vector<std::vector<std::vector<float>>> Network::copyWeights()
 {
     std::vector<std::vector<std::vector<float>>> weights;
@@ -327,6 +442,9 @@ std::vector<std::vector<std::vector<float>>> Network::copyWeights()
     return weights;
 }
 
+/*!
+ *  @return hard copy of biases 2d vector
+ */
 std::vector<std::vector<float>> Network::copyBiases()
 {
     std::vector<std::vector<float>> biases;
