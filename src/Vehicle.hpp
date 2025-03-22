@@ -1,7 +1,10 @@
 #pragma once
+#include "Network.hpp"
 #include <box2d/id.h>
 #include <box2d/math_functions.h>
-#include <Network.hpp>
+#include <functional>
+#include <random>
+#include <vector>
 
 class Vehicle
 {
@@ -28,7 +31,7 @@ public:
 
     std::vector<float>& Sense(b2WorldId world, float fov, size_t rayCount, float xMin, float xMax, float yMin, float yMax);
 
-    void Act(std::vector<float>& inputs);
+    void Act(std::vector<float>& inputs, float halfWidth, float halfHeight);
 
     void Evolve(Network betterBrain, float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen);
 
@@ -40,7 +43,7 @@ public:
 
     void IncrementWallCollisions();
 
-    void UpdateScore(float collisionPenalizer);
+    void UpdateScore(float collisionPenalizer, float distanceMultiplier);
 
     float GetScore() const;
 
