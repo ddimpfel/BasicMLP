@@ -47,7 +47,8 @@ float fFieldOfView = PI;
 // Simulation
 size_t uAgentCount = 50;
 float fCollisionPenalizer = 0.1f;
-float fDistanceMultiplier = 5.f;
+float fDistanceMultiplier = 15.f;
 int uSimulationSpeed = 3;
+float fGenerationTimer = 60.f;
 
 }
