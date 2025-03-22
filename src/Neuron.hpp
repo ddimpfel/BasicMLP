@@ -12,6 +12,7 @@ public:
         std::mt19937& gen);
 
     const std::vector<float>& getWeights() const;
+    float getBias() const;
     std::vector<float>& weights();
     float&              bias();
 

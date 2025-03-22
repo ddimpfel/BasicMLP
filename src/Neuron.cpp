@@ -16,6 +16,7 @@ void Neuron::InitRandomWeightsAndBias(int neuronCount,
 }
 
 const std::vector<float>& Neuron::getWeights() const { return m_weights; }
+float Neuron::getBias() const { return m_bias; }
 std::vector<float>& Neuron::weights() { return m_weights; }
 float& Neuron::bias() { return m_bias; }
 void Neuron::setBias(float bias) { m_bias = bias; }
