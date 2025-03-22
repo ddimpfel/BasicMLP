@@ -11,10 +11,8 @@
 #include "Layer.hpp"
 #include "SimpleWindow.hpp"
 
-constexpr float xGapMult = 5.f;
-constexpr float yGapMult = 3.f;
 constexpr float minThickness = 1.0f;
-constexpr float thicknessCoeff = 3.f;
+constexpr float thicknessCoeff = 1.f;
 
 // This adds more of a parallelogram than straight line, in that the ends
 // are vertcal and not perpendicular to the line direction.
@@ -32,8 +30,12 @@ constexpr float thicknessCoeff = 3.f;
     return idx;
 }
 
-static void DrawNetwork(const Network& nn, SimpleWindow& window, 
-    const sf::Vector2f& center, float nodeRadius)
+namespace sf
+{
+namespace nn
+{
+static void Draw(const Network& nn, SimpleWindow& window,
+    const sf::Vector2f& center, float nodeRadius, float horizontalSpacingScalar, float verticalSpacingScalar)
 {
     const std::vector<Layer>& layers = nn.getLayers();
     const std::vector<std::vector<float>>& layerOutputs = nn.getLayerOutputs();
@@ -51,7 +53,7 @@ static void DrawNetwork(const Network& nn, SimpleWindow& window,
     // lines made of triangles for thickness
     auto& networkArchitecture = nn.getArchitecture();
     size_t totalVertices = 0;
-    for (size_t l{ 0 }; l < networkArchitecture.size()-1; ++l)
+    for (size_t l{ 0 }; l < networkArchitecture.size() - 1; ++l)
     {
         size_t interconnections = networkArchitecture[l] * networkArchitecture[l + 1];
         totalVertices += interconnections * 6;
@@ -62,8 +64,8 @@ static void DrawNetwork(const Network& nn, SimpleWindow& window,
     size_t vertexCounter = 0;
 
     // Determine the total width for the entire network
-    float horizontalGap = nodeRadius * xGapMult;
-    float totalWidth    = horizontalGap * (layerCount - 1);
+    float horizontalGap = nodeRadius * horizontalSpacingScalar;
+    float totalWidth = horizontalGap * (layerCount - 1);
     float x = center.x - totalWidth / 2.f;
 
     // Iterate through all the layers, getting their neurons and outputs
@@ -74,14 +76,14 @@ static void DrawNetwork(const Network& nn, SimpleWindow& window,
         auto& outputs = layerOutputs[l];
 
         // Determine the total height for this layer
-        float verticalGap = nodeRadius * yGapMult;
+        float verticalGap = nodeRadius * verticalSpacingScalar;
         float totalHeight = verticalGap * (currNeuronsCount - 1);
         float y = center.y - totalHeight / 2.f;
 
         for (uint64_t n{ 0 }; n < currNeuronsCount; ++n)
         {
-            circle.setPosition({x, y});
-            circle.setFillColor(sf::Color(255, 255, 255, 
+            circle.setPosition({ x, y });
+            circle.setFillColor(sf::Color(255, 255, 255,
                 static_cast<uint8_t>(255 * outputs[n])));
             window.Draw(circle);
 
@@ -95,7 +97,7 @@ static void DrawNetwork(const Network& nn, SimpleWindow& window,
                 const auto& nextNeuronsCount = nextLayer.getNeurons().size();
                 float xNextVert = x + horizontalGap - nodeRadius;
 
-                // Determine the mext layers vertical spacing
+                // Determine the next layers vertical spacing
                 float totalNextHeight = verticalGap * (nextNeuronsCount - 1);
                 float yNextVert = center.y - totalNextHeight / 2.f;
 
@@ -104,7 +106,7 @@ static void DrawNetwork(const Network& nn, SimpleWindow& window,
                 {
                     float w = nextLayer.getNeurons()[nextN].getWeights()[n];
                     vertexCounter = AddLine(
-                        vertices, vertexCounter, 
+                        vertices, vertexCounter,
                         xVert, y, xNextVert, yNextVert,
                         std::max(minThickness, thicknessCoeff * w)
                     );
@@ -118,3 +120,5 @@ static void DrawNetwork(const Network& nn, SimpleWindow& window,
 
     window.Draw(vertices);
 }
+}   // nn
+}   // sf
