@@ -5,6 +5,8 @@
 #include <functional>
 #include <random>
 #include <vector>
+#include <SFML/Graphics/Color.hpp>
+#include <SFML/Graphics/RenderWindow.hpp>
 
 class Vehicle
 {
@@ -35,9 +37,13 @@ public:
 
     void Evolve(Network betterBrain, float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen);
 
+    void Crossover(Vehicle& parent1, Vehicle& parent2, std::uniform_real_distribution<float>& dist, std::mt19937& gen);
+
     void ResetBody(float x, float y, float rotation);
 
     void MutateBrain(float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen);
+
+    void ScrambleBrain(std::uniform_real_distribution<float>& dist, std::mt19937& gen);
 
     void InitializeScoring();
 
@@ -47,16 +53,23 @@ public:
 
     float GetScore() const;
 
+    void Draw(sf::RenderWindow& window, sf::Color outlineColor, b2BodyId vehicleBody, float halfWidth, float halfHeight, float box2dScale);
+
+
 	b2BodyId m_body;
 	Network m_brain;
 
 private:
+    // Brain
     std::vector<float> m_inputs;
     std::vector<float> m_outputs;
 
+    // Score
+    float m_score;
     int m_wallCollisions;
     b2Vec2 m_previousPosition;
-    float m_previousAngle;
+    float m_previousPositionalAngle;
     float m_totalAngleTraversed;
-    float m_score;
+    int m_lapsCompleted;
+    int m_standstillCount;
 };

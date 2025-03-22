@@ -1,16 +1,27 @@
 #include "Vehicle.hpp"
 
 #include "Network.hpp"
-#include <box2d/box2d.h>
-#include <box2d/types.h>
-#include <box2d/collision.h>
-#include <box2d/id.h>
-#include <box2d/math_functions.h>
+
 #include <cmath>
 #include <functional>
 #include <memory>
 #include <random>
 #include <vector>
+#include <iostream>
+
+#include <box2d/box2d.h>
+#include <box2d/types.h>
+#include <box2d/collision.h>
+#include <box2d/id.h>
+#include <box2d/math_functions.h>
+
+#include <SFML/Graphics.hpp>
+#include <SFML/Graphics/Color.hpp>
+#include <SFML/Graphics/PrimitiveType.hpp>
+#include <SFML/Graphics/RectangleShape.hpp>
+#include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/Vertex.hpp>
+#include <SFML/Graphics/VertexArray.hpp>
 
 Vehicle::Vehicle() :
     m_score(0.f), m_wallCollisions(0) {}
@@ -111,7 +122,6 @@ std::vector<float>& Vehicle::Sense(b2WorldId world, float fov, size_t rayCount, 
     float dy = currentPosition.y - m_previousPosition.y;
     m_inputs[5] = dx;
     m_inputs[6] = dy;
-    m_previousPosition = currentPosition;
 
     return m_inputs;
 }
@@ -152,6 +162,66 @@ void Vehicle::Evolve(Network betterBrain, float mutationFactor, std::uniform_rea
 
     // Evolve offspring
     MutateBrain(mutationFactor, dist, gen);
+}
+
+void Vehicle::Crossover(Vehicle& parent1, Vehicle& parent2, std::uniform_real_distribution<float>& dist, std::mt19937& gen)
+{
+    std::vector<std::vector<std::vector<float>>> newWeights;
+    std::vector<std::vector<float>> newBiases;
+
+    // Combine two parent networks to create a child network. This is only implemented for equal size networks.
+    Network& p1Brain = parent1.m_brain;
+    Network& p2Brain = parent2.m_brain;
+
+    const std::vector<Layer>& p1Layers = p1Brain.getLayers();
+    const std::vector<Layer>& p2Layers = p2Brain.getLayers();
+
+    newWeights.resize(p1Layers.size());
+    newBiases.resize(p1Layers.size());
+
+    for (size_t layer = 0; layer < p1Layers.size(); layer++)
+    {
+        const std::vector<Neuron>& p1LayerNeurons = p1Layers[layer].getNeurons();
+        const std::vector<Neuron>& p2LayerNeurons = p2Layers[layer].getNeurons();
+
+        newWeights[layer].resize(p1LayerNeurons.size());
+        newBiases[layer].resize(p1LayerNeurons.size());
+
+        // Randomly select neurons for child
+        for (size_t neuron = 0; neuron < p1LayerNeurons.size(); neuron++)
+        {
+            newWeights[layer][neuron].resize(p1LayerNeurons[neuron].getWeights().size());
+
+            if ((dist(gen) + 1.f) / 2.f < 0.5f)
+            {
+                // Parent 1 neuron selected
+                // new bias
+                newBiases[layer][neuron] = p1LayerNeurons[neuron].getBias();
+                
+                // new weights
+                const std::vector<float>& p1NeuronWeights = p1LayerNeurons[neuron].getWeights();
+                for (size_t w = 0; w < p1LayerNeurons[neuron].getWeights().size(); w++)
+                {
+                    newWeights[layer][neuron][w] = p1NeuronWeights[w];
+                }
+            }
+            else
+            {
+                // Parent 2 neuron selected
+                // new bias
+                newBiases[layer][neuron] = p2LayerNeurons[neuron].getBias();
+
+                // new weights
+                const std::vector<float>& p2NeuronWeights = p2LayerNeurons[neuron].getWeights();
+                for (size_t w = 0; w < p2LayerNeurons[neuron].getWeights().size(); w++)
+                {
+                    newWeights[layer][neuron][w] = p2NeuronWeights[w];
+                }
+            }
+        }
+    }
+
+    m_brain.setWeightsAndBiases(newWeights, newBiases);
 }
 
 void Vehicle::ResetBody(float x, float y, float rotation)
@@ -210,34 +280,39 @@ void Vehicle::MutateBrain(float mutationFactor, std::uniform_real_distribution<f
 
     // Update brain
     m_brain.setWeightsAndBiases(weights, biases);
+}
 
-    //float max = dist.max();
-    //float min = dist.min();
-    //
-    //// random layer's biases altered
-    //int randomLayer = (dist(gen) - min) / (max - min) * m_brain.getLayers().size() - 1;
-    //std::vector<std::vector<float>> biases = m_brain.copyBiases();
-    //for (auto& bias : biases[randomLayer])
-    //{
-    //    // Normalize distribution generator to [-1, 1]
-    //    float randomBiasChange = dist(gen);
-    //    bias += randomBiasChange * mutationFactor;
-    //}
+void Vehicle::ScrambleBrain(std::uniform_real_distribution<float>& dist, std::mt19937& gen)
+{
+    std::vector<std::vector<std::vector<float>>> newWeights;
+    std::vector<std::vector<float>> newBiases;
 
-    //// random neurons weights altered
-    //randomLayer = (dist(gen) - min) / (max - min) * m_brain.getLayers().size() - 1;
-    //std::vector<std::vector<std::vector<float>>> weights = m_brain.copyWeights();
-    //std::vector<std::vector<float>>& layer = weights[randomLayer];
-    //float randomNeuron = (dist(gen) - min) / (max - min) * m_brain.getLayers().size() - 1;
-    //for (auto& weight : layer[randomNeuron])
-    //{
-    //    // Normalize distribution generator [-1, 1]
-    //    float randomWeightChange = dist(gen);
-    //    weight += dist(gen) * mutationFactor;
-    //}
+    const std::vector<Layer>& layers = m_brain.getLayers();
 
-    //// Update brain
-    //m_brain.setWeightsAndBiases(weights, biases);
+    newWeights.resize(layers.size());
+    newBiases.resize(layers.size());
+
+    for (size_t layer = 0; layer < layers.size(); layer++)
+    {
+        const std::vector<Neuron>& neurons = layers[layer].getNeurons();
+
+        newWeights[layer].resize(neurons.size());
+        newBiases[layer].resize(neurons.size());
+
+        for (size_t neuron = 0; neuron < neurons.size(); neuron++)
+        {
+            std::vector<float> weights = neurons[neuron].getWeights();
+
+            newWeights[layer][neuron].resize(weights.size());
+            for (size_t weight = 0; weight < weights.size(); weight++)
+            {
+                weights[weight] = dist(gen);
+            }
+
+            newWeights[layer][neuron] = weights;
+            newBiases[layer][neuron] = 0.f;
+        }
+    }
 }
 
 void Vehicle::InitializeScoring()
@@ -250,7 +325,7 @@ void Vehicle::InitializeScoring()
     // Since track is centered around (0, 0), position is the angle offset for the circle
     //  otherwise this would need to be translated to circle's center
     b2Vec2 position = b2Body_GetPosition(m_body);
-    m_previousAngle = atan2f(position.x, position.y);
+    m_previousPositionalAngle = atan2f(position.x, position.y);
 }
 
 void Vehicle::IncrementWallCollisions() { m_wallCollisions++; }
@@ -260,20 +335,92 @@ void Vehicle::UpdateScore(float collisionPenalizer, float distanceMultiplier)
     // Since track is centered around (0, 0), position is the angle offset for the circle
     //  otherwise this would need to be translated to circle's center
     b2Vec2 position = b2Body_GetPosition(m_body);
-    float speed = b2LengthSquared(b2Body_GetLinearVelocity(m_body));
-    float currentAngle = atan2f(position.x, position.y);
+    b2Vec2 velocity = b2Body_GetLinearVelocity(m_body);
+    float speed = b2Length(velocity);
+    
+    // Check if at a standstill and penalize
+    float movementSinceLastUpdate = b2Length(position - m_previousPosition);
+    float speedScore = 0.f;
+    if (movementSinceLastUpdate < 0.05f)
+    {
+        m_standstillCount++;
+        speedScore = -0.1f * m_standstillCount;
+    }
+    else
+    {
+        m_standstillCount = 0.f;
+        speedScore = speed * 0.2f;
+    }
+
+    float currentPositionalAngle = atan2f(position.x, position.y);
 
     // Calculate angle difference, map to [-pi, pi]
-    float angleDiff = currentAngle - m_previousAngle;
+    float angleDiff = currentPositionalAngle - m_previousPositionalAngle;
     if (angleDiff > B2_PI) angleDiff -= 2 * B2_PI;
     if (angleDiff < -B2_PI) angleDiff += 2 * B2_PI;
 
     // Negate angle diff for clockwise track (angle is decreaseing)
     m_totalAngleTraversed -= angleDiff;
-    m_previousAngle = currentAngle;
 
+    // Less good than using a center line
+    // Calculate alignment with track
+    //  position is track radial vector with track origin at (0, 0)
+    b2Vec2 tangentialNormal = b2Normalize(b2RightPerp(position));
+    b2Rot rotation = b2Body_GetRotation(m_body);
+    b2Vec2 rotationVector = { rotation.c, rotation.s };
+    float tangentialOffset = b2Dot(tangentialNormal, rotationVector);
+
+    // Reward vehicles moving in the direction they are facing
+    b2Vec2 normalizedVelocity = velocity;
+    if (b2Length(velocity) > 0.1f)
+    {
+        normalizedVelocity = b2Normalize(velocity);
+    }
+    float movementOffset = b2Dot(normalizedVelocity, rotationVector);
+
+    // Penalize wall collisions
     float collisionPenalties = m_wallCollisions * collisionPenalizer;
-    m_score = m_totalAngleTraversed * distanceMultiplier - collisionPenalties + speed * 0.1f; // FIXME 3.f angle traversed mutliplier
+
+    // Update score
+    m_score = (m_totalAngleTraversed * distanceMultiplier) - collisionPenalties + 
+        speedScore + (tangentialOffset * 1.f) + (movementOffset * 1.f);
+
+    // Additional progressive reward for half-laps
+    if (m_totalAngleTraversed > B2_PI)
+    {
+        m_lapsCompleted++;
+        m_score += m_lapsCompleted * 50.f;
+    }
+
+    // Update previous vars
+    m_previousPosition = position;
+    m_previousPositionalAngle = currentPositionalAngle;
 }
 
 float Vehicle::GetScore() const { return m_score; }
+
+void Vehicle::Draw(sf::RenderWindow& window, sf::Color outlineColor, b2BodyId vehicleBody, float halfWidth, float halfHeight, float box2dScale)
+{
+    const b2Vec2& position = b2Body_GetPosition(vehicleBody);
+    const b2Rot& rotation = b2Body_GetRotation(vehicleBody);
+
+    // Display vehicle
+    sf::RectangleShape vehicle({ halfWidth * 2.f * box2dScale, halfHeight * 2.f * box2dScale });
+    vehicle.setOrigin({ halfWidth * box2dScale, halfHeight * box2dScale });
+    vehicle.setFillColor(sf::Color::Transparent);
+    vehicle.setOutlineColor(outlineColor);
+    vehicle.setOutlineThickness(1.f);
+    vehicle.setPosition({ position.x * box2dScale, position.y * box2dScale });
+    vehicle.setRotation(sf::radians(b2Rot_GetAngle(rotation)));
+    window.draw(vehicle);
+
+    // display rotation
+    float radius = 25.f;
+    sf::VertexArray rotationLine(sf::PrimitiveType::Lines, 2);
+    b2Vec2 pos = b2Body_GetPosition(vehicleBody);
+    float screenX = pos.x * box2dScale;
+    float screenY = pos.y * box2dScale;
+    rotationLine[0] = sf::Vertex{ { screenX, screenY } };
+    rotationLine[1] = sf::Vertex{ { rotation.c * radius + screenX, rotation.s * radius + screenY } };
+    window.draw(rotationLine);
+}
