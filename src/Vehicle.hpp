@@ -7,11 +7,13 @@
 #include <vector>
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/VertexArray.hpp>
 
 class Vehicle
 {
 public:
-	Vehicle();
+    Vehicle();
+    Vehicle(size_t rayCount);
 	~Vehicle();
 
     void InitBody(
@@ -31,13 +33,12 @@ public:
         std::mt19937& gen
     );
 
-    std::vector<float>& Sense(b2WorldId world, float fov, size_t rayCount, float xMin, float xMax, float yMin, float yMax);
+    std::vector<float>& Sense(b2WorldId world, float fov, size_t rayCount, float xMin, float xMax, float yMin, float yMax, float b2Scale);
 
     void Act(std::vector<float>& inputs, float halfWidth, float halfHeight);
 
-    void Evolve(Network betterBrain, float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen);
-
-    void Crossover(Vehicle& parent1, Vehicle& parent2, std::uniform_real_distribution<float>& dist, std::mt19937& gen);
+    void Crossover(Vehicle& parent1, Vehicle& parent2, float parent1Score, float parent2Score,
+        std::uniform_real_distribution<float>& dist, std::mt19937& gen);
 
     void ResetBody(float x, float y, float rotation);
 
@@ -45,11 +46,11 @@ public:
 
     void ScrambleBrain(std::uniform_real_distribution<float>& dist, std::mt19937& gen);
 
-    void InitializeScoring();
+    void ZeroScoring();
 
     void IncrementWallCollisions();
 
-    void UpdateScore(float collisionPenalizer, float distanceMultiplier);
+    void UpdateScore(float collisionPenalizer, float distanceMultiplier, float generationTimer);
 
     float GetScore() const;
 
@@ -58,6 +59,7 @@ public:
 
 	b2BodyId m_body;
 	Network m_brain;
+    sf::VertexArray m_rays;
 
 private:
     // Brain
@@ -65,11 +67,11 @@ private:
     std::vector<float> m_outputs;
 
     // Score
-    float m_score;
-    int m_wallCollisions;
     b2Vec2 m_previousPosition;
     float m_previousPositionalAngle;
+    float m_score;
+    int m_wallCollisions;
     float m_totalAngleTraversed;
-    int m_lapsCompleted;
+    float m_lapsCompleted;
     int m_standstillCount;
 };

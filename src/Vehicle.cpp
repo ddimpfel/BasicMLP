@@ -24,7 +24,18 @@
 #include <SFML/Graphics/VertexArray.hpp>
 
 Vehicle::Vehicle() :
-    m_score(0.f), m_wallCollisions(0) {}
+    m_score(0.f), m_wallCollisions(0), m_lapsCompleted(0)
+{
+    m_rays.setPrimitiveType(sf::PrimitiveType::LineStrip);
+    m_rays.resize(10);
+}
+
+Vehicle::Vehicle(size_t rayCount) :
+    m_score(0.f), m_wallCollisions(0), m_lapsCompleted(0) 
+{
+    m_rays.setPrimitiveType(sf::PrimitiveType::LineStrip);
+    m_rays.resize(rayCount*2);
+}
 
 Vehicle::~Vehicle() = default;
 
@@ -36,10 +47,11 @@ void Vehicle::InitBody(b2WorldId world, float halfWidth, float halfHeight, float
     // FIXME 50.f = param::fBOX2D_SCALE but parameters.hpp linker error
     bodyDef.position = { x, y };
     bodyDef.linearVelocity = { 0.f, 0.f };
-    bodyDef.linearDamping = 0.9f;
-    bodyDef.angularDamping = 0.9f;
+    bodyDef.linearDamping = 0.0f; // Handled by simulation
+    bodyDef.angularDamping = 0.8f;
     bodyDef.rotation = b2MakeRot(rotation);
-    bodyDef.enableSleep = false;
+    bodyDef.enableSleep = false;  
+    bodyDef.fixedRotation = false;
     bodyDef.userData = this;
 
     m_body = b2CreateBody(world, &bodyDef);
@@ -49,13 +61,17 @@ void Vehicle::InitBody(b2WorldId world, float halfWidth, float halfHeight, float
 
     // Define collider
     b2ShapeDef shapeDef = b2DefaultShapeDef();;
-    // FIXME 2 = param::Vehicle but parameters.hpp linker error
-    shapeDef.filter.categoryBits = 2;;
-    // FIXME 1 = param::Wall but parameters.hpp linker error
+    shapeDef.filter.categoryBits = 2;
     shapeDef.filter.maskBits = 1;
     shapeDef.enableContactEvents = true;
+    shapeDef.density = 30.f;
+    shapeDef.friction = 0.2f;
+    shapeDef.restitution = 0.1f;
 
     b2CreatePolygonShape(m_body, &shapeDef, &box);
+
+    m_previousPosition = { x, y };
+    m_previousPositionalAngle = atan2f(x, y);
 }
 
 void Vehicle::InitBrain(
@@ -75,7 +91,7 @@ void Vehicle::InitBrain(
     m_outputs.resize(architecture.back());
 }
 
-std::vector<float>& Vehicle::Sense(b2WorldId world, float fov, size_t rayCount, float xMin, float xMax, float yMin, float yMax)
+std::vector<float>& Vehicle::Sense(b2WorldId world, float fov, size_t rayCount, float xMin, float xMax, float yMin, float yMax, float b2Scale)
 { 
     // Body parameters
     const b2Vec2& position = b2Body_GetPosition(m_body);
@@ -102,8 +118,8 @@ std::vector<float>& Vehicle::Sense(b2WorldId world, float fov, size_t rayCount, 
 
         // Cast and draw
         rayResults[i] = b2World_CastRayClosest(world, position, translation, rayFilter);
-        //m_rays[i * 2] = sf::Vertex{ { position.x * 50.f, position.y * 50.f }, sf::Color::Yellow };
-        //m_rays[i * 2 + 1] = sf::Vertex{ { (position.x + translation.x) * 50.f, (position.y + translation.y) * 50.f }, sf::Color::Yellow };
+        m_rays[i * 2] = sf::Vertex{ { position.x * b2Scale, position.y * b2Scale }, sf::Color::Yellow };
+        m_rays[i * 2 + 1] = sf::Vertex{ { (position.x + translation.x) * b2Scale, (position.y + translation.y) * b2Scale }, sf::Color::Yellow };
     }
 
     // Inputs
@@ -111,17 +127,18 @@ std::vector<float>& Vehicle::Sense(b2WorldId world, float fov, size_t rayCount, 
     m_inputs[0] = (position.x - xMin) / (xMax - xMin);
     m_inputs[1] = (position.y - yMin) / (yMax - yMin);
 
-    // Ray inputs
-    m_inputs[2] = rayResults[0].fraction;
-    m_inputs[3] = rayResults[1].fraction;
-    m_inputs[4] = rayResults[2].fraction;
-
     // Change in position input
     b2Vec2 currentPosition = b2Body_GetPosition(m_body);
     float dx = currentPosition.x - m_previousPosition.x;
     float dy = currentPosition.y - m_previousPosition.y;
-    m_inputs[5] = dx;
-    m_inputs[6] = dy;
+    m_inputs[2] = dx;
+    m_inputs[3] = dy;
+
+    // Ray inputs
+    for (size_t i = 0; i < rayCount; i++)
+    {
+        m_inputs[i + 4] = rayResults[i].fraction;
+    }
 
     return m_inputs;
 }
@@ -133,92 +150,183 @@ void Vehicle::Act(std::vector<float>& inputs, float halfWidth, float halfHeight)
     // Network outputs are normalized from [0, 1]
     m_outputs = m_brain.Predict(inputs);
 
-    // Transform outputs to represent all possible force vectors
-    //  ouputs in range from [-0.5, 0.5]
-    m_outputs[0] -= 0.5f;
-    m_outputs[1] -= 0.5f;
-    b2Vec2 force = b2Normalize({ m_outputs[0], m_outputs[1] });
+    // Current vehicle stats
+    b2Vec2 position = b2Body_GetPosition(m_body);
+    b2Rot rotation = b2Body_GetRotation(m_body);
+    b2Vec2 currentVelocity = b2Body_GetLinearVelocity(m_body);
+    float currentAngularVelocity = b2Body_GetAngularVelocity(m_body);
 
-    // Move agent with force applied to position on body
-    // Transform outputs to represent all possible acceleration vectors
-    //  ouputs in range from [-1, 1]
-    m_outputs[2] *= 2.f - 1.f;
-    m_outputs[2] *= halfWidth;
-    m_outputs[3] *= 2.f - 1.f;
-    m_outputs[3] *= halfHeight;
-    b2Vec2 forcePosition = b2Body_GetPosition(m_body);
-    forcePosition.x += m_outputs[2];
-    forcePosition.y += m_outputs[3];
+    // ====== CAR CONTROLS ======
+    float throttle = m_outputs[0] * 2.f - 1.f;
+    float steering = m_outputs[1] * 2.f - 1.f;
 
-    b2Body_ApplyForce(m_body, force, forcePosition, true);
+    // ====== PHYSICS PARAMETERS ======
+    // Adjusted for smaller vehicle size
+    float maxEngineForce = 10.f;
+    float maxBrakingForce = 15.f;
+    float maxSteeringTorque = 0.3f;
+    float steeringDampening = 0.9f;
+
+    float lateralFrictionCoeff = 3.f;
+    float rollingResistance = 0.2f;
+
+    b2Vec2 forwardDirection = { rotation.c, rotation.s };
+
+    // ======= APPLY ENGINE/BRAKING FORCE =======
+    float engineForce = 0.f;
+    if (throttle > 0.f) // Accelerate
+        engineForce = throttle * maxEngineForce;
+    else                // Brake
+        engineForce = throttle * maxBrakingForce;
+
+    // Apply force along forward vector
+    b2Vec2 propulsion = {
+        forwardDirection.x * engineForce,
+        forwardDirection.y * engineForce
+    };
+    b2Body_ApplyForceToCenter(m_body, propulsion, true);
+
+    // ======= STEERING MECHANICS =======
+    float steeringTorque = steering * maxSteeringTorque;
+
+    // Steering effectiveness decreases at higher speed
+    float currentSpeed = b2Dot(currentVelocity, forwardDirection);
+    float steeringFactor = 1.f / (1.f + 0.1f * fabs(currentSpeed));
+    steeringTorque *= steeringFactor;
+
+    // Apply angular impulse for turning (dampening prevents oscillation)
+    float angularImpulse = steeringTorque - (currentAngularVelocity * steeringDampening);
+    b2Body_ApplyAngularImpulse(m_body, angularImpulse, true);
+
+    // ====== LATERAL FRICTION ====== (sideways velocity component)
+    b2Vec2 rightDirection = { -forwardDirection.y, forwardDirection.x };
+    float lateralVelocity = b2Dot(currentVelocity, rightDirection);
+
+    // Apply lateral friction to prevent easy sliding
+    b2Vec2 lateralFrictionForce = {
+        -rightDirection.x * lateralVelocity * lateralFrictionCoeff,
+        -rightDirection.y * lateralVelocity * lateralFrictionCoeff
+    };
+    b2Body_ApplyForceToCenter(m_body, lateralFrictionForce, true);
+
+    // ====== ROLLING DISTANCE ======
+    b2Vec2 rollingResistanceForce = {
+        -currentVelocity.x * rollingResistance,
+        -currentVelocity.y * rollingResistance
+    };
+    b2Body_ApplyForceToCenter(m_body, rollingResistanceForce, true);
+
+    // Very efficient but poor simulation results
+    //// Transform outputs to represent all possible force vectors
+    ////  ouputs in range from [-0.5, 0.5]
+    //m_outputs[0] -= 0.5f;
+    //m_outputs[1] -= 0.5f;
+    //b2Vec2 force = b2Normalize({ m_outputs[0], m_outputs[1] });
+    //
+    //// Move agent with force applied to position on body
+    //// Transform outputs to represent all possible acceleration vectors
+    ////  ouputs in range from [-1, 1]
+    //m_outputs[2] *= 2.f - 1.f;
+    //m_outputs[2] *= halfWidth;
+    //m_outputs[3] *= 2.f - 1.f;
+    //m_outputs[3] *= halfHeight;
+    //b2Vec2 forcePosition = b2Body_GetPosition(m_body);
+    //forcePosition.x += m_outputs[2];
+    //forcePosition.y += m_outputs[3];
+    //
+    //b2Body_ApplyForce(m_body, force, forcePosition, true);
 }
 
-void Vehicle::Evolve(Network betterBrain, float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen)
+void Vehicle::Crossover(Vehicle& parent1, Vehicle& parent2, float parent1Score, float parent2Score,
+    std::uniform_real_distribution<float>& dist, std::mt19937& gen)
 {
-    // Copy better brain from more succesful vehicle
-    m_brain = betterBrain;
-    m_inputs.resize(m_brain.getArchitecture().front());
-    m_outputs.resize(m_brain.getArchitecture().back());
-
-    // Evolve offspring
-    MutateBrain(mutationFactor, dist, gen);
-}
-
-void Vehicle::Crossover(Vehicle& parent1, Vehicle& parent2, std::uniform_real_distribution<float>& dist, std::mt19937& gen)
-{
-    std::vector<std::vector<std::vector<float>>> newWeights;
-    std::vector<std::vector<float>> newBiases;
+    // Crossover type randomizer
+    float r = (dist(gen) + 1.f) / 2.f;
 
     // Combine two parent networks to create a child network. This is only implemented for equal size networks.
-    Network& p1Brain = parent1.m_brain;
-    Network& p2Brain = parent2.m_brain;
+    const Network& p1Brain = parent1.m_brain;
+    const Network& p2Brain = parent2.m_brain;
 
-    const std::vector<Layer>& p1Layers = p1Brain.getLayers();
-    const std::vector<Layer>& p2Layers = p2Brain.getLayers();
+    // Calulate parent bias based on fitness scores
+    float totalScore = parent1Score + parent2Score;
+    float p1Bias = (totalScore > 0) ? (parent1Score / totalScore) : 0.5f;
 
-    newWeights.resize(p1Layers.size());
-    newBiases.resize(p1Layers.size());
+    // Child starts as base copy of parent 1
+    std::vector<std::vector<std::vector<float>>> newWeights = p1Brain.copyWeights();
+    std::vector<std::vector<float>> newBiases = p1Brain.copyBiases();
 
-    for (size_t layer = 0; layer < p1Layers.size(); layer++)
+    std::vector<std::vector<std::vector<float>>> p2Weights = p2Brain.copyWeights();
+    std::vector<std::vector<float>> p2Biases = p2Brain.copyBiases();
+
+    // Use differing crossover strategies
+    if (r < 0.4f)
     {
-        const std::vector<Neuron>& p1LayerNeurons = p1Layers[layer].getNeurons();
-        const std::vector<Neuron>& p2LayerNeurons = p2Layers[layer].getNeurons();
-
-        newWeights[layer].resize(p1LayerNeurons.size());
-        newBiases[layer].resize(p1LayerNeurons.size());
-
-        // Randomly select neurons for child
-        for (size_t neuron = 0; neuron < p1LayerNeurons.size(); neuron++)
+        // Strategy 1: fitness weighted neuron mixing
+        for (size_t layer = 0; layer < newWeights.size(); layer++)
         {
-            newWeights[layer][neuron].resize(p1LayerNeurons[neuron].getWeights().size());
-
-            if ((dist(gen) + 1.f) / 2.f < 0.5f)
+            for (size_t neuron = 0; neuron < newWeights[layer].size(); neuron++)
             {
-                // Parent 1 neuron selected
-                // new bias
-                newBiases[layer][neuron] = p1LayerNeurons[neuron].getBias();
-                
-                // new weights
-                const std::vector<float>& p1NeuronWeights = p1LayerNeurons[neuron].getWeights();
-                for (size_t w = 0; w < p1LayerNeurons[neuron].getWeights().size(); w++)
+                // Decide if we take neuron from parent 1 or 2
+                if ((dist(gen) + 1.f) / 2.f > p1Bias)
                 {
-                    newWeights[layer][neuron][w] = p1NeuronWeights[w];
-                }
-            }
-            else
-            {
-                // Parent 2 neuron selected
-                // new bias
-                newBiases[layer][neuron] = p2LayerNeurons[neuron].getBias();
-
-                // new weights
-                const std::vector<float>& p2NeuronWeights = p2LayerNeurons[neuron].getWeights();
-                for (size_t w = 0; w < p2LayerNeurons[neuron].getWeights().size(); w++)
-                {
-                    newWeights[layer][neuron][w] = p2NeuronWeights[w];
+                    // Take parent 2 neuron
+                    newBiases[layer][neuron] = p2Biases[layer][neuron];
+                    for (size_t w = 0; w < newWeights[layer][neuron].size(); w++)
+                    {
+                        newWeights[layer][neuron][w] = p2Weights[layer][neuron][w];
+                    }
                 }
             }
         }
+    }
+    else if (r < 0.7f)
+    {
+        // Strategy 2: layer crossover
+        for (size_t layer = 0; layer < newWeights.size(); layer++)
+        {
+            // Decide if we take layer from parent 1 or 2
+            if ((dist(gen) + 1.f) / 2.f > p1Bias)
+            {
+                for (size_t neuron = 0; neuron < newWeights[layer].size(); neuron++)
+                {
+                    // Take parent 1 neuron
+                    newBiases[layer][neuron] = p2Biases[layer][neuron];
+                    for (size_t w = 0; w < newWeights[layer][neuron].size(); w++)
+                    {
+                        newWeights[layer][neuron][w] = p2Weights[layer][neuron][w];
+                    }
+                }
+            }
+        }
+    }
+    else if (r < 0.9f)
+    {
+        // Strategy 3: weight level blending
+        // Random parent blend
+        float blendRatio = ((dist(gen)) + 1.f) / 2.f;
+
+        for (size_t layer = 0; layer < newWeights.size(); layer++)
+        {
+            for (size_t neuron = 0; neuron < newWeights[layer].size(); neuron++)
+            {
+                // Bias blend
+                newBiases[layer][neuron] = newBiases[layer][neuron] * blendRatio + 
+                    p2Biases[layer][neuron] * (1.f - blendRatio);
+
+                for (size_t w = 0; w < newWeights[layer][neuron].size(); w++)
+                {
+                    // Weight blend
+                    newWeights[layer][neuron][w] = newWeights[layer][neuron][w] * blendRatio +
+                        p2Weights[layer][neuron][w] * (1.f - blendRatio);
+                }
+            }
+        }
+    }
+    else if(parent1Score < parent2Score) 
+    {
+        // Strategy 4: otherwise keep better parent's network
+        newWeights = p2Weights;
+        newBiases = p2Biases;
     }
 
     m_brain.setWeightsAndBiases(newWeights, newBiases);
@@ -229,7 +337,8 @@ void Vehicle::ResetBody(float x, float y, float rotation)
     b2Body_SetTransform(m_body, { x, y }, b2MakeRot(rotation));
     b2Body_SetLinearVelocity(m_body, { 0.f, 0.f });
     b2Body_SetAngularVelocity(m_body, 0.f);
-    InitializeScoring();
+    m_previousPosition = { x, y };
+    m_previousPositionalAngle = atan2f(x, y);
 }
 
 void Vehicle::MutateBrain(float mutationFactor, std::uniform_real_distribution<float>& dist, std::mt19937& gen)
@@ -315,45 +424,43 @@ void Vehicle::ScrambleBrain(std::uniform_real_distribution<float>& dist, std::mt
     }
 }
 
-void Vehicle::InitializeScoring()
+void Vehicle::ZeroScoring()
 {
     m_wallCollisions = 0;
     m_totalAngleTraversed = 0.f;
+    m_lapsCompleted = 0.f;
+    m_standstillCount = 0;
     m_score = 0.f;
-
-    // Calculate starting angle
-    // Since track is centered around (0, 0), position is the angle offset for the circle
-    //  otherwise this would need to be translated to circle's center
-    b2Vec2 position = b2Body_GetPosition(m_body);
-    m_previousPositionalAngle = atan2f(position.x, position.y);
 }
 
 void Vehicle::IncrementWallCollisions() { m_wallCollisions++; }
 
-void Vehicle::UpdateScore(float collisionPenalizer, float distanceMultiplier)
+void Vehicle::UpdateScore(float collisionPenalizer, float distanceMultiplier, float generationTimer)
 {
     // Since track is centered around (0, 0), position is the angle offset for the circle
     //  otherwise this would need to be translated to circle's center
     b2Vec2 position = b2Body_GetPosition(m_body);
     b2Vec2 velocity = b2Body_GetLinearVelocity(m_body);
     float speed = b2Length(velocity);
-    
+
+    // ======= STANDSTILL PENALTY =======
     // Check if at a standstill and penalize
     float movementSinceLastUpdate = b2Length(position - m_previousPosition);
     float speedScore = 0.f;
     if (movementSinceLastUpdate < 0.05f)
     {
         m_standstillCount++;
-        speedScore = -0.1f * m_standstillCount;
+        speedScore = -0.5f * m_standstillCount / generationTimer;
     }
     else
     {
         m_standstillCount = 0.f;
-        speedScore = speed * 0.2f;
+        speedScore = speed * 0.3f;
     }
 
-    float currentPositionalAngle = atan2f(position.x, position.y);
 
+    // ======= ANGLE TRAVERSAL (circular track progression) =======
+    float currentPositionalAngle = atan2f(position.x, position.y);
     // Calculate angle difference, map to [-pi, pi]
     float angleDiff = currentPositionalAngle - m_previousPositionalAngle;
     if (angleDiff > B2_PI) angleDiff -= 2 * B2_PI;
@@ -362,6 +469,7 @@ void Vehicle::UpdateScore(float collisionPenalizer, float distanceMultiplier)
     // Negate angle diff for clockwise track (angle is decreaseing)
     m_totalAngleTraversed -= angleDiff;
 
+    // ======= TRACK ALIGNMENT REWARD =======
     // Less good than using a center line
     // Calculate alignment with track
     //  position is track radial vector with track origin at (0, 0)
@@ -370,26 +478,41 @@ void Vehicle::UpdateScore(float collisionPenalizer, float distanceMultiplier)
     b2Vec2 rotationVector = { rotation.c, rotation.s };
     float tangentialOffset = b2Dot(tangentialNormal, rotationVector);
 
+    // Use sigmoid-like function to reward alignment without discontinuities
+    float tangentialScore = 2.0f / (1.0f + exp(-3.0f * tangentialOffset)) - 1.0f;
+
+    // ======= MOVEMENT DIRECTION ALIGNMENT =======
     // Reward vehicles moving in the direction they are facing
     b2Vec2 normalizedVelocity = velocity;
-    if (b2Length(velocity) > 0.1f)
+    if (speed > 0.1f)
     {
         normalizedVelocity = b2Normalize(velocity);
     }
     float movementOffset = b2Dot(normalizedVelocity, rotationVector);
+    // Penalize directions not heavilty aligned with facing direction
+    if (movementOffset < 0.7f) 
+    {
+        // Normalize values below 0.5f to [0, -1.5]
+        movementOffset = movementOffset - 0.7f;
+    }
 
-    // Penalize wall collisions
+    // ======= WALL COLLISION PENALTY =======
     float collisionPenalties = m_wallCollisions * collisionPenalizer;
 
     // Update score
-    m_score = (m_totalAngleTraversed * distanceMultiplier) - collisionPenalties + 
-        speedScore + (tangentialOffset * 1.f) + (movementOffset * 1.f);
+    m_score = 
+        m_totalAngleTraversed * distanceMultiplier - 
+        collisionPenalties + 
+        speedScore + 
+        tangentialScore * 6.f +
+        movementOffset * 6.f;
 
+    // ======= LAP COUNTING =======
     // Additional progressive reward for half-laps
-    if (m_totalAngleTraversed > B2_PI)
+    if (m_totalAngleTraversed >= (m_lapsCompleted + 0.5f) * 2.0f * B2_PI)
     {
-        m_lapsCompleted++;
-        m_score += m_lapsCompleted * 50.f;
+        m_lapsCompleted += 0.5f;
+        m_score += 50.f;
     }
 
     // Update previous vars
