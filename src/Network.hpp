@@ -162,12 +162,12 @@ public:
     /*!
      *  @return hard copy of weights 3d vector
      */
-    std::vector<std::vector<std::vector<float>>> copyWeights();
+    std::vector<std::vector<std::vector<float>>> copyWeights() const;
 
     /*!
      *  @return hard copy of biases 2d vector
      */
-    std::vector<std::vector<float>> copyBiases();
+    std::vector<std::vector<float>> copyBiases() const;
 
 private:
     /*!

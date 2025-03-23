@@ -425,39 +425,48 @@ void Network::setWeightsAndBiases(const std::vector<std::vector<std::vector<floa
 /*!
  *  @return hard copy of weights 3d vector
  */
-std::vector<std::vector<std::vector<float>>> Network::copyWeights()
+std::vector<std::vector<std::vector<float>>> Network::copyWeights() const
 {
-    std::vector<std::vector<std::vector<float>>> weights;
-    weights.reserve(m_layers.size());
-    for (auto& layer : m_layers) 
+    std::vector<std::vector<std::vector<float>>> weights(m_layers.size());
+
+    for (size_t layer = 0; layer < m_layers.size(); layer++)
     {
-        std::vector<std::vector<float>> layerWeights;
-        layerWeights.reserve(layer.getNeurons().size());
-        for (auto& neuron : layer.neurons()) 
+        const std::vector<Neuron>& layerNeurons = m_layers[layer].getNeurons();
+
+        weights[layer].resize(layerNeurons.size());
+        for (size_t neuron = 0; neuron < layerNeurons.size(); neuron++)
         {
-            layerWeights.push_back(neuron.weights());
+            const std::vector<float>& neuronWeights = layerNeurons[neuron].getWeights();
+
+            weights[layer][neuron].resize(neuronWeights.size());
+            for (size_t w = 0; w < neuronWeights.size(); w++)
+            {
+                float weight = neuronWeights[w];
+                weights[layer][neuron][w] = weight;
+            }
         }
-        weights.push_back(std::move(layerWeights));
     }
+
     return weights;
 }
 
 /*!
  *  @return hard copy of biases 2d vector
  */
-std::vector<std::vector<float>> Network::copyBiases()
+std::vector<std::vector<float>> Network::copyBiases() const
 {
-    std::vector<std::vector<float>> biases;
-    biases.reserve(m_layers.size());
-    for (auto& layer : m_layers)
+    std::vector<std::vector<float>> biases(m_layers.size());
+
+    for (size_t layer = 0; layer < m_layers.size(); layer++)
     {
-        std::vector<float> layerBiases;
-        layerBiases.reserve(layer.getNeurons().size());
-        for (auto& neuron : layer.neurons())
+        const std::vector<Neuron>& layerNeurons = m_layers[layer].getNeurons();
+
+        biases[layer].resize(layerNeurons.size());
+        for (size_t neuron = 0; neuron < layerNeurons.size(); neuron++)
         {
-            layerBiases.push_back(neuron.bias());
+            float bias = layerNeurons[neuron].getBias();
+            biases[layer][neuron] = bias;
         }
-        biases.push_back(std::move(layerBiases));
     }
     return biases;
 }
