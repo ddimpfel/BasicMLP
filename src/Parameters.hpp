@@ -41,14 +41,15 @@ float fStartY = 0.f;
 float fStartRotation = -PI / 2.f;
 
 // Senses
-size_t uRayCount = 3;
-float fFieldOfView = PI;
+size_t uRayCount = 5;
+float fFieldOfView = PI / 1.5f;
 
 // Simulation
 size_t uAgentCount = 50;
-float fCollisionPenalizer = 0.1f;
-float fDistanceMultiplier = 15.f;
+float fCollisionPenalizer = 10.f;
+float fDistanceMultiplier = 35.f;
 int uSimulationSpeed = 3;
 float fGenerationTimer = 60.f;
+float fBestPerformersFraction = 0.2f;
 
 }
