@@ -34,6 +34,8 @@ void SimpleWindow::Create()
 	auto state = (m_isFullscreen ? sf::State::Fullscreen : sf::State::Windowed);
 	m_window.create(sf::VideoMode({ m_uWindowSize.x, m_uWindowSize.y }),
 		m_windowTitle, state, {0, 0, 8});
+	m_framerate = 60.f;
+	m_window.setFramerateLimit(m_framerate);
 }
 
 void SimpleWindow::Destroy()
