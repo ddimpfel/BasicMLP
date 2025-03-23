@@ -63,7 +63,7 @@ Network::Network(
     DerivativeActivationFunction(DerivativeActivationFunction),
     LossFunction(LossFunction)
 {
-    if (initialArchitecture.size() < 3)
+    if (initialArchitecture.size() < 2)
     {
         std::cerr << __FILE__ << ":" << __LINE__ << 
             " Initial Architecture should be the full network architecture";
@@ -117,7 +117,7 @@ Network::Network(
     DerivativeActivationFunction(DerivativeActivationFunction),
     LossFunction(LossFunction)
 {
-    if (initialArchitecture.size() < 3)
+    if (initialArchitecture.size() < 2)
     {
         std::cerr << __FILE__ << ":" << __LINE__ <<
             " Initial Architecture should be the full network architecture";
