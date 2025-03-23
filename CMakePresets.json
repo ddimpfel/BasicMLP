@@ -2,12 +2,39 @@
 	"version": 6,
 	"configurePresets": [
 		{
-			"name": "default",
-			"displayName": "Default Config",
-			"description": "Default build configuration",
+			"name": "windows-debug",
+			"displayName": "Windows x64 Debug",
+			"description": "Sets Ninja generator, compilers, x64 architecture, build and install directory, debug build type",
 			"generator": "Ninja",
-			"binaryDir": "${sourceDir}/../build",
-			"cmakeExecutable": "C:/Program Files/CMake/bin/cmake.exe"
+			"binaryDir": "${sourceDir}/../build/Debug",
+			"cmakeExecutable": "C:/Program Files/CMake/bin/cmake.exe",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			}
+		},
+
+		{
+			"name": "windows-release-debug",
+			"displayName": "Windows x64 Release (debug)",
+			"description": "Sets Ninja generator, compilers, x64 architecture, build and install directory, release build type",
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/../build/Release",
+			"cmakeExecutable": "C:/Program Files/CMake/bin/cmake.exe",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "RelWithDebInfo"
+			}
+		},
+
+		{
+			"name": "windows-release",
+			"displayName": "Windows x64 Release (final)",
+			"description": "Sets Ninja generator, compilers, x64 architecture, build and install directory, release build type",
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/../build/Release",
+			"cmakeExecutable": "C:/Program Files/CMake/bin/cmake.exe",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			}
 		}
 	]
 }
